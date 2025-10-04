@@ -22,7 +22,6 @@ WORKDIR /root/
 
 # Copy the binary from builder
 COPY --from=builder /app/main .
-COPY --from=builder /app/.env .
 
 EXPOSE 8080
 
