@@ -1,5 +1,6 @@
 # Backend
 backend/main
+backend/backend
 backend/vendor/
 
 # Frontend

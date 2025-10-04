@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -19,9 +20,7 @@ import (
 var (
 	db       *pgxpool.Pool
 	upgrader = websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool {
-			return true
-		},
+		CheckOrigin: checkOrigin,
 	}
 )
 
@@ -109,10 +108,12 @@ func loadConfig() {
 	// Set defaults
 	viper.SetDefault("server.port", "8080")
 	viper.SetDefault("database.url", "")
+	viper.SetDefault("websocket.allowed_origins", "")
 
 	// Map environment variables to config keys
 	viper.BindEnv("server.port", "SERVER_PORT")
 	viper.BindEnv("database.url", "DATABASE_URL")
+	viper.BindEnv("websocket.allowed_origins", "WEBSOCKET_ALLOWED_ORIGINS")
 
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
@@ -121,6 +122,39 @@ func loadConfig() {
 			slog.Error("Error reading config file", "error", err)
 		}
 	}
+}
+
+// checkOrigin validates the origin of WebSocket connections to prevent CSRF attacks
+func checkOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	
+	// Get allowed origins from config
+	allowedOriginsStr := viper.GetString("websocket.allowed_origins")
+	
+	// If no allowed origins are configured, deny all requests for security
+	if allowedOriginsStr == "" {
+		slog.Warn("WebSocket connection rejected: no allowed origins configured", "origin", origin)
+		return false
+	}
+	
+	// Parse allowed origins (comma-separated list)
+	allowedOrigins := strings.Split(allowedOriginsStr, ",")
+	
+	// Trim whitespace from origins
+	for i := range allowedOrigins {
+		allowedOrigins[i] = strings.TrimSpace(allowedOrigins[i])
+	}
+	
+	// Check if origin is in allowed list
+	for _, allowed := range allowedOrigins {
+		if allowed == origin {
+			slog.Info("WebSocket connection accepted", "origin", origin)
+			return true
+		}
+	}
+	
+	slog.Warn("WebSocket connection rejected: origin not allowed", "origin", origin, "allowed_origins", allowedOriginsStr)
+	return false
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
