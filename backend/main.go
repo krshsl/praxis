@@ -110,6 +110,10 @@ func loadConfig() {
 	viper.SetDefault("server.port", "8080")
 	viper.SetDefault("database.url", "")
 
+	// Map environment variables to config keys
+	viper.BindEnv("server.port", "SERVER_PORT")
+	viper.BindEnv("database.url", "DATABASE_URL")
+
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 			slog.Warn("Config file not found, using defaults and environment variables")

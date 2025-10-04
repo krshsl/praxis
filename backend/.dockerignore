@@ -1,8 +1,5 @@
 # Binaries
 main
 
-# Dependencies
-vendor/
-
 # Environment files (will be managed by docker-compose)
 # .env
