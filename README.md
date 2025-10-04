@@ -65,6 +65,15 @@ Backend configuration is managed through Viper and can be set via environment va
 
 - `SERVER_PORT` - Server port (default: 8080)
 - `DATABASE_URL` - PostgreSQL connection string
+- `WEBSOCKET_ALLOWED_ORIGINS` - Comma-separated list of allowed WebSocket origins for CSRF protection (e.g., `http://localhost,http://localhost:80,http://localhost:5173`)
+
+### Security Notes
+
+The WebSocket endpoint implements origin validation to prevent Cross-Site Request Forgery (CSRF) attacks. You must configure `WEBSOCKET_ALLOWED_ORIGINS` with the appropriate origins for your deployment:
+
+- **Development**: Include `http://localhost`, `http://localhost:80`, and `http://localhost:5173`
+- **Production**: Set to your actual domain(s), e.g., `https://yourdomain.com`
+- **Important**: Leaving this empty will reject all WebSocket connections for security reasons
 
 ## Project Structure
 
