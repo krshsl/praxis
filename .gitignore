@@ -1,0 +1,26 @@
+# Backend
+backend/main
+backend/vendor/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.DS_Store
+
+# Environment files with secrets (keep .env.example instead)
+*.env
+!backend/.env
+
+# Docker
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
