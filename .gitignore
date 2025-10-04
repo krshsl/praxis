@@ -9,7 +9,6 @@ frontend/.DS_Store
 
 # Environment files with secrets (keep .env.example instead)
 *.env
-!backend/.env
 
 # Docker
 *.log
