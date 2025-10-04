@@ -1,0 +1,5 @@
+# Binaries
+main
+
+# Environment files (will be managed by docker-compose)
+# .env
