@@ -3,11 +3,17 @@ FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
-# Copy all source code including vendor
-COPY . .
+# Copy go mod files
+COPY go.mod go.sum ./
 
-# Build the application using vendored dependencies
-RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor -a -installsuffix cgo -o main .
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY *.go ./
+
+# Build the application
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
 
 # Final stage - use a minimal golang alpine image
 FROM golang:1.24-alpine
