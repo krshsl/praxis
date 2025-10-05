@@ -14,6 +14,9 @@ import { INTERVIEW_TIMING } from 'constants/timing'
 import { useToast } from 'hooks/useToast'
 
 export function InterviewView() {
+  // Ref to control current audio element
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+
   const navigate = useNavigate()
   const user  = useUser()
   const { 
@@ -24,88 +27,167 @@ export function InterviewView() {
     isProcessing,
     isUserSpeaking,
     isAISpeaking,
+    isAudioPlaying,
+    isTyping,
+    typingContent,
+    audioGenerationFailed,
     sessionEnded
   } = useConversationStore()
   const { toast } = useToast()
   // Show a full-page modal when the session ends (triggered by backend 'end_session')
   const [showSessionEndModal, setShowSessionEndModal] = useState(false)
+  const [audioSrc, setAudioSrc] = useState<string | null>(null)
+  const [currentPhase, setCurrentPhase] = useState<'thinking' | 'speaking' | 'idle'>('idle')
+
+  const startThinkingPhase = useCallback(() => {
+    setCurrentPhase('thinking')
+    useConversationStore.getState().setThinking(true)
+  }, [])
+
+  const playAudio = useCallback(async (src: string) => {
+    try {
+      const audio = new Audio(src)
+      audio.volume = 1.0
+      audio.preload = 'auto'
+      
+      audio.addEventListener('play', () => {
+        useConversationStore.getState().setAudioPlaying(true)
+      })
+      
+      audio.addEventListener('ended', () => {
+        setAudioSrc(null)
+        useConversationStore.getState().setAudioPlaying(false)
+        startThinkingPhase()
+        audio.remove()
+      })
+      
+      audio.addEventListener('error', () => {
+        setAudioSrc(null)
+        useConversationStore.getState().setAudioPlaying(false)
+        startThinkingPhase()
+        audio.remove()
+      })
+      
+      audioRef.current = audio
+      await audio.play()
+      
+    } catch (error) {
+      setAudioSrc(null)
+      useConversationStore.getState().setAudioPlaying(false)
+      startThinkingPhase()
+    }
+  }, [startThinkingPhase])
+
+  useEffect(() => {
+    websocketService.setAudioCallback((audioSrc) => {
+      setAudioSrc(audioSrc)
+    })
+    return () => {
+      websocketService.setAudioCallback(() => {})
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current.remove()
+        audioRef.current = null
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (audioSrc) {
+      playAudio(audioSrc)
+      
+      const timeout = setTimeout(() => {
+        setAudioSrc(null)
+        useConversationStore.getState().setAudioPlaying(false)
+        startThinkingPhase()
+      }, 30000)
+      
+      return () => clearTimeout(timeout)
+    }
+  }, [audioSrc, playAudio, startThinkingPhase])
+
   useEffect(() => {
     if (sessionEnded) {
       setShowSessionEndModal(true)
-      // Cleanup store, but do NOT navigate yet (wait for user to confirm)
       useConversationStore.getState().setCurrentSession(null)
       useConversationStore.getState().clearMessages()
-      // Reset sessionEnded so effect can trigger again in future sessions
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current.currentTime = 0
+        audioRef.current.remove()
+        audioRef.current = null
+      }
       setTimeout(() => {
         useConversationStore.getState().setSessionEnded(false)
       }, 0)
     }
   }, [sessionEnded])
 
-  // Debug: Log messages when they change
-  useEffect(() => {
-    console.log('📝 Messages updated:', messages.length, 'messages')
-    if (messages.length > 0) {
-      console.log('Latest message:', messages[messages.length - 1])
-    }
-  }, [messages])
 
   const [isInitialized, setIsInitialized] = useState(false)
   const [showStopModal, setShowStopModal] = useState(false)
   const [isEnding, setIsEnding] = useState(false)
-  const [currentPhase, setCurrentPhase] = useState<'thinking' | 'speaking' | 'idle'>('idle')
   const lastAssistantMsgId = useRef<string | null>(null)
-  // ...existing code...
   
 
-  // Start 10s thinking phase immediately after an AI question/message arrives
   useEffect(() => {
     if (!messages.length) return
     const last = messages[messages.length - 1]
     if (last.role === 'assistant') {
       if (lastAssistantMsgId.current === last.id) return
       lastAssistantMsgId.current = last.id
-      if (!isProcessing && isConnected && currentPhase !== 'speaking') {
-        startThinkingPhase()
+      if (!isProcessing && isConnected && currentPhase !== 'speaking' && !isAudioPlaying) {
+        // Check if the last message has audio content (combined message)
+        if (last.type === 'audio' && last.content) {
+          const src = last.content
+          if (src.startsWith('data:audio') || src.startsWith('http')) {
+            setAudioSrc(src)
+          } else {
+            try {
+              const byteString = atob(src)
+              const ab = new ArrayBuffer(byteString.length)
+              const ia = new Uint8Array(ab)
+              for (let i = 0; i < byteString.length; i++) {
+                ia[i] = byteString.charCodeAt(i)
+              }
+              const blob = new Blob([ab], { type: 'audio/mpeg' })
+              const url = URL.createObjectURL(blob)
+              setAudioSrc(url)
+            } catch {
+              // If audio parsing fails, start thinking immediately
+              setTimeout(startThinkingPhase, 0)
+            }
+          }
+        } else {
+          // For text-only responses, start thinking immediately
+          setTimeout(startThinkingPhase, 0)
+        }
       }
     }
-  }, [messages, isProcessing, isConnected, currentPhase])
+  }, [messages, isProcessing, isConnected, currentPhase, isAudioPlaying, startThinkingPhase])
 
-  // Timer logic is now handled by the Timer component itself
 
   const initializeConnection = useCallback(async () => {
     try {
       if (user) {
         const currentSession = useConversationStore.getState().currentSession
         if (!currentSession) {
-          console.error('No session found. Please start a session from the dashboard first.')
           navigate('/')
           return
         }
-        
-        console.log('Initializing WebSocket connection for user:', user.email, 'with session:', currentSession)
         await websocketService.connect()
-        console.log('WebSocket connection established')
-      } else {
-        console.error('No user found, cannot initialize WebSocket connection')
       }
     } catch (error) {
-      console.error('Failed to initialize connection:', error)
+      // Handle connection error silently
     }
   }, [navigate, user])
 
-  // Initialize websocket connection once per session when user is available
   useEffect(() => {
     if (user && !isInitialized) {
       initializeConnection()
       setIsInitialized(true)
     }
   }, [user, isInitialized, initializeConnection])
-
-  const startThinkingPhase = () => {
-    setCurrentPhase('thinking')
-    useConversationStore.getState().setThinking(true)
-  }
 
   const startSpeakingPhase = () => {
     setCurrentPhase('speaking')
@@ -195,8 +277,32 @@ export function InterviewView() {
     }
   }
 
+  useEffect(() => {
+    const handleStartThinkingPhase = () => {
+      startThinkingPhase()
+    }
+
+    const interviewView = document.querySelector('[data-interview-view]')
+    if (interviewView) {
+      interviewView.addEventListener('startThinkingPhase', handleStartThinkingPhase)
+      return () => {
+        interviewView.removeEventListener('startThinkingPhase', handleStartThinkingPhase)
+      }
+    }
+  }, [startThinkingPhase])
+
+  useEffect(() => {
+    if (audioGenerationFailed) {
+      toast({
+        title: 'Audio Generation Failed',
+        description: 'Audio could not be generated. Please read the text response below. You will have extra time to read.',
+        variant: 'default',
+      })
+    }
+  }, [audioGenerationFailed, toast])
+
   return (
-    <div className="h-screen flex flex-col overflow-hidden">
+    <div className="h-screen flex flex-col overflow-hidden" data-interview-view>
       {/* Session Ended Modal (full page) */}
       <Modal
         isOpen={showSessionEndModal}
@@ -283,8 +389,35 @@ export function InterviewView() {
                 className="w-16 h-16"
               />
               <SpeakingIndicator isSpeaking={isUserSpeaking} />
+              {/* Audio Playing Phase */}
+              {isAudioPlaying && (
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground mb-2">AI is speaking...</p>
+                  <div className="flex items-center justify-center space-x-2">
+                    <div className="animate-pulse rounded-full h-4 w-4 bg-primary"></div>
+                    <div className="animate-pulse rounded-full h-4 w-4 bg-primary" style={{ animationDelay: '0.2s' }}></div>
+                    <div className="animate-pulse rounded-full h-4 w-4 bg-primary" style={{ animationDelay: '0.4s' }}></div>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">Please wait for the AI to finish speaking</p>
+                </div>
+              )}
+              {/* Audio Generation Failed Phase */}
+              {audioGenerationFailed && !isAudioPlaying && (
+                <div className="text-center">
+                  <div className="flex items-center justify-center mb-2">
+                    <div className="w-4 h-4 bg-yellow-500 rounded-full mr-2"></div>
+                    <p className="text-sm text-yellow-600 font-medium">Audio unavailable</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Please read the text response below
+                  </p>
+                  <div className="text-xs text-muted-foreground">
+                    <p>⏱️ Taking time to read...</p>
+                  </div>
+                </div>
+              )}
               {/* Thinking Phase */}
-              {currentPhase === 'thinking' && (
+              {currentPhase === 'thinking' && !isAudioPlaying && (
                 <div className="text-center">
                   <p className="text-sm text-muted-foreground mb-2">Think about your response...</p>
                   <Timer
@@ -356,40 +489,56 @@ export function InterviewView() {
         <CardContent className="flex-1 overflow-hidden p-6">
           {/* Messages */}
           <div className="h-full space-y-4 overflow-y-auto">
-            {messages.length === 0 ? (
+            {messages.length === 0 && !isTyping ? (
               <div className="text-center text-muted-foreground py-8">
                 <p>Connecting to interview... The AI will start the conversation automatically.</p>
               </div>
             ) : (
-              messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex ${
-                    message.role === 'user' ? 'justify-end' : 'justify-start'
-                  } mb-4`}
-                >
+              <>
+                {messages.map((message) => (
                   <div
-                    className={`max-w-[80%] rounded-lg px-4 py-3 ${
-                      message.role === 'user'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted text-foreground border-l-4 border-primary'
-                    }`}
+                    key={message.id}
+                    className={`flex ${
+                      message.role === 'user' ? 'justify-end' : 'justify-start'
+                    } mb-4`}
                   >
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-medium opacity-70">
-                        {message.role === 'user' ? 'You' : 'AI Interviewer'}
-                      </span>
-                      <span className="text-xs opacity-50">
-                        {new Date(message.timestamp).toLocaleTimeString()}
-                      </span>
+                    <div
+                      className={`max-w-[80%] rounded-lg px-4 py-3 ${
+                        message.role === 'user'
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted text-foreground border-l-4 border-primary'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-medium opacity-70">
+                          {message.role === 'user' ? 'You' : 'AI Interviewer'}
+                        </span>
+                        <span className="text-xs opacity-50">
+                          {new Date(message.timestamp).toLocaleTimeString()}
+                        </span>
+                      </div>
+                      <p className="text-sm leading-relaxed">{message.content}</p>
                     </div>
-                    <p className="text-sm leading-relaxed">{message.content}</p>
                   </div>
-                </div>
-              ))
+                ))}
+                {/* Typing animation message */}
+                {isTyping && (
+                  <div className="flex justify-start mb-4">
+                    <div className="max-w-[80%] rounded-lg px-4 py-3 bg-muted text-foreground border-l-4 border-primary">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-medium opacity-70">AI Interviewer</span>
+                        <span className="text-xs opacity-50">typing...</span>
+                      </div>
+                      <p className="text-sm leading-relaxed">
+                        {typingContent}
+                        <span className="animate-pulse">|</span>
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
-          {/* Quick Actions removed */}
         </CardContent>
       </Card>
     </div>

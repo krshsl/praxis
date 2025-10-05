@@ -1,33 +1,46 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 600" width="600" height="300">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 600" width="48" height="24" role="img" aria-label="P logo with diagonal orange-to-green gradient">
   <defs>
+    <!-- diagonal gradient spanning stem + circle evenly -->
+    <linearGradient id="diagGrad" x1="360" y1="160" x2="760" y2="440" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ff7b00"/>
+      <stop offset="25%" stop-color="#ff9f1c"/>
+      <stop offset="55%" stop-color="#ffd166"/>
+      <stop offset="100%" stop-color="#06d6a0"/>
+    </linearGradient>
+
     <mask id="cutout">
       <rect x="0" y="0" width="1200" height="600" fill="white"/>
       <circle cx="600" cy="300" r="120" fill="black"/>
     </mask>
+
+    <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
     <style>
-      .fill { fill: #fefae0; }
-      .counter-stroke { fill: none; stroke: #d4a373; stroke-width: 3; }
-      .outline {
-        fill: none;
-        stroke: #d4a373;
-        stroke-width: 3;
-        stroke-linejoin: round;
-        stroke-linecap: round;
-      }
+      .fill { fill: url(#diagGrad); }
+      .under-stroke { fill: none; stroke: rgba(255,255,255,0.92); stroke-linejoin: round; stroke-linecap: round; }
+      .stroke-grad { fill: none; stroke-width: 4; stroke-linejoin: round; stroke-linecap: round; stroke: url(#diagGrad); }
+      .counter-stroke { fill: none; stroke: rgba(255,255,255,0.9); stroke-width: 4; }
     </style>
   </defs>
 
-  <g mask="url(#cutout)">
-    <rect class="fill" x="400" y="300" width="80" height="200" rx="40" />
+  <!-- masked group for stem + circle -->
+  <g mask="url(#cutout)" filter="url(#softGlow)">
+    <rect class="fill" x="400" y="300" width="80" height="200" rx="40"/>
     <circle class="fill" cx="600" cy="300" r="200"/>
   </g>
 
+  <!-- inner cutout counter -->
   <circle class="counter-stroke" cx="600" cy="300" r="120"/>
 
-  <path class="outline" d="
-    M 480 460
-    A 200 200 0 1 0 400 300
-    L 400 460
-    A 40 40 0 0 0 480 460
-    Z" />
+  <!-- outline path -->
+  <path d="M 480 460 A 200 200 0 1 0 400 300 L 400 460 A 40 40 0 0 0 480 460 Z"
+        class="under-stroke" stroke-width="6"/>
+  <path d="M 480 460 A 200 200 0 1 0 400 300 L 400 460 A 40 40 0 0 0 480 460 Z"
+        class="stroke-grad" stroke-width="4"/>
 </svg>

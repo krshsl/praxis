@@ -11,6 +11,8 @@ type Agent struct {
 	ID          string         `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	UserID      *string        `gorm:"type:uuid;index" json:"user_id,omitempty"` // NULL for public agents
 	Name        string         `gorm:"not null" json:"name"`
+	Gender      string         `gorm:"size:10" json:"gender,omitempty"`   // male, female, other
+	VoiceID     string         `gorm:"size:32" json:"voice_id,omitempty"` // Optional: ElevenLabs voice id
 	Description string         `gorm:"type:text" json:"description"`
 	Personality string         `gorm:"type:text;not null" json:"personality"` // The AI personality/behavior
 	Industry    string         `gorm:"size:100" json:"industry,omitempty"`

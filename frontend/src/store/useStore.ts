@@ -24,6 +24,10 @@ export interface ConversationState {
   speakingTimeRemaining: number
   sessionEnded: boolean
   sessionEndReason: string | null
+  isAudioPlaying: boolean
+  isTyping: boolean
+  typingContent: string
+  audioGenerationFailed: boolean
 }
 
 export interface ConversationActions {
@@ -41,6 +45,10 @@ export interface ConversationActions {
   clearMessages: () => void
   updateMessage: (id: string, updates: Partial<Message>) => void
   setSessionEnded: (ended: boolean, reason?: string) => void
+  setAudioPlaying: (playing: boolean) => void
+  setTyping: (typing: boolean) => void
+  setTypingContent: (content: string) => void
+  setAudioGenerationFailed: (failed: boolean) => void
 }
 
 export const useConversationStore = create<ConversationState & ConversationActions>()(
@@ -60,6 +68,10 @@ export const useConversationStore = create<ConversationState & ConversationActio
       speakingTimeRemaining: 0,
       sessionEnded: false,
       sessionEndReason: null,
+      isAudioPlaying: false,
+      isTyping: false,
+      typingContent: '',
+      audioGenerationFailed: false,
 
       // Actions
       addMessage: (message) => {
@@ -127,6 +139,22 @@ export const useConversationStore = create<ConversationState & ConversationActio
 
       setSessionEnded: (ended, reason) => {
         set({ sessionEnded: ended, sessionEndReason: reason || null })
+      },
+
+      setAudioPlaying: (playing) => {
+        set({ isAudioPlaying: playing })
+      },
+
+      setTyping: (typing) => {
+        set({ isTyping: typing })
+      },
+
+      setTypingContent: (content) => {
+        set({ typingContent: content })
+      },
+
+      setAudioGenerationFailed: (failed) => {
+        set({ audioGenerationFailed: failed })
       },
     }),
     {

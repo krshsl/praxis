@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"strings"
 	"time"
@@ -117,6 +118,30 @@ func (p *AIMessageProcessor) sendAudioMessage(client *ws.Client, audioData []byt
 	}
 }
 
+func (p *AIMessageProcessor) sendCombinedMessage(client *ws.Client, textContent string, audioData []byte) {
+	// Convert audio data to base64
+	audioBase64 := base64.StdEncoding.EncodeToString(audioData)
+
+	message := ws.Message{
+		Type:            "audio",     // Set type as audio so frontend knows to play it
+		Content:         textContent, // Include text content for display
+		AudioDataBase64: audioBase64,
+	}
+
+	messageBytes, err := json.Marshal(message)
+	if err != nil {
+		slog.Error("Failed to marshal combined message", "error", err, "session_id", client.SessionID)
+		return
+	}
+
+	select {
+	case client.Send <- messageBytes:
+		slog.Info("Combined message sent to client", "session_id", client.SessionID, "text_length", len(textContent), "audio_size", len(audioData))
+	default:
+		slog.Warn("Failed to send combined message - client channel full", "session_id", client.SessionID)
+	}
+}
+
 // AutoStartInterview automatically starts the interview when a client connects
 func (p *AIMessageProcessor) AutoStartInterview(client *ws.Client) {
 	ctx := context.Background()
@@ -172,8 +197,34 @@ func (p *AIMessageProcessor) AutoStartInterview(client *ws.Client) {
 			}
 		}
 
-		// Send welcome message to client
-		p.sendMessage(client, welcomeMessage, "text", "")
+		// Generate and send welcome message as audio first, using gender-based voice
+		if p.elevenLabsService != nil {
+			// Use agent.VoiceID if set, else fallback to gender-based or default
+			voiceID := agent.VoiceID
+			if voiceID == "" {
+				voiceID = PickDeterministicVoice(agent.Name, agent.Gender)
+			}
+			audioStream, err := p.elevenLabsService.TextToSpeechWithVoice(ctx, welcomeMessage, voiceID)
+			if err != nil {
+				slog.Error("Failed to generate welcome audio", "error", err, "session_id", client.SessionID)
+				// Send text as fallback if audio fails
+				p.sendMessage(client, welcomeMessage, "text", "")
+			} else {
+				audioData, err := io.ReadAll(audioStream)
+				audioStream.Close()
+				if err != nil {
+					slog.Error("Failed to read welcome audio data", "error", err, "session_id", client.SessionID)
+					// Send text as fallback if audio reading fails
+					p.sendMessage(client, welcomeMessage, "text", "")
+				} else {
+					// Send combined message with both audio and text
+					p.sendCombinedMessage(client, welcomeMessage, audioData)
+				}
+			}
+		} else {
+			// Send text message if no audio service
+			p.sendMessage(client, welcomeMessage, "text", "")
+		}
 
 		slog.Info("Auto-started interview", "session_id", client.SessionID, "agent", agent.Name)
 	}
@@ -378,28 +429,49 @@ func (p *AIMessageProcessor) processAudioData(client *ws.Client, audioData []byt
 				p.timeoutService.AddTranscript(client.SessionID, aiTranscript)
 			}
 
-			// Send AI response as text to client
-			slog.Info("Sending AI response to client", "session_id", client.SessionID, "response_length", len(aiResponse))
-			p.sendMessage(client, aiResponse, "text", "")
-
-			// TODO: Re-enable audio generation later
-			// Generate and send AI response as audio
-			// if p.elevenLabsService != nil {
-			// 	audioStream, err := p.elevenLabsService.TextToSpeech(ctx, aiResponse)
-			// 	if err != nil {
-			// 		slog.Error("Failed to generate AI audio", "error", err, "session_id", client.SessionID)
-			// 	} else {
-			// 		// Read audio data
-			// 		audioData, err := io.ReadAll(audioStream)
-			// 		audioStream.Close()
-			// 		if err != nil {
-			// 			slog.Error("Failed to read AI audio data", "error", err, "session_id", client.SessionID)
-			// 		} else {
-			// 			// Send audio to client
-			// 			p.sendAudioMessage(client, audioData)
-			// 		}
-			// 	}
-			// }
+			// Generate and send AI response as audio first, using gender-based voice
+			if p.elevenLabsService != nil {
+				// Get session and agent for voice selection
+				session, err := p.repo.GetInterviewSession(ctx, client.SessionID)
+				if err == nil {
+					agent, err := p.repo.GetAgent(ctx, session.AgentID)
+					if err == nil {
+						// Use agent.VoiceID if set, else fallback to gender-based or default
+						voiceID := agent.VoiceID
+						if voiceID == "" {
+							voiceID = PickDeterministicVoice(agent.Name, agent.Gender)
+						}
+						audioStream, err := p.elevenLabsService.TextToSpeechWithVoice(ctx, aiResponse, voiceID)
+						if err != nil {
+							slog.Error("Failed to generate AI audio", "error", err, "session_id", client.SessionID)
+							// Send text as fallback if audio fails
+							p.sendMessage(client, aiResponse, "text", "")
+						} else {
+							// Read audio data
+							audioData, err := io.ReadAll(audioStream)
+							audioStream.Close()
+							if err != nil {
+								slog.Error("Failed to read AI audio data", "error", err, "session_id", client.SessionID)
+								// Send text as fallback if audio reading fails
+								p.sendMessage(client, aiResponse, "text", "")
+							} else {
+								// Send combined message with both audio and text
+								p.sendCombinedMessage(client, aiResponse, audioData)
+							}
+						}
+					} else {
+						// Send text if agent lookup fails
+						p.sendMessage(client, aiResponse, "text", "")
+					}
+				} else {
+					// Send text if session lookup fails
+					p.sendMessage(client, aiResponse, "text", "")
+				}
+			} else {
+				// Send AI response as text to client if no audio service
+				slog.Info("Sending AI response to client", "session_id", client.SessionID, "response_length", len(aiResponse))
+				p.sendMessage(client, aiResponse, "text", "")
+			}
 		} // close: if p.repo != nil
 	} else {
 		slog.Warn("Gemini service not available for audio transcription", "session_id", client.SessionID)

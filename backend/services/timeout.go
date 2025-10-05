@@ -169,11 +169,8 @@ func (s *SessionTimeoutService) startTimeoutChecker() {
 	ticker := time.NewTicker(30 * time.Second) // Check every 30 seconds
 	defer ticker.Stop()
 
-	for {
-		select {
-		case <-ticker.C:
-			s.checkTimeouts()
-		}
+	for range ticker.C {
+		s.checkTimeouts()
 	}
 }
 
@@ -225,7 +222,11 @@ func (s *SessionTimeoutService) handleTimedOutSession(session *ActiveSession) {
 
 	// Generate summary if we have transcripts
 	if len(session.Transcripts) > 0 {
+		slog.Info("Starting automatic summary generation", "session_id", session.SessionID, "transcript_count", len(session.Transcripts))
 		s.generateAutoSummary(ctx, &dbSession, session.Transcripts)
+		slog.Info("Automatic summary generation completed", "session_id", session.SessionID)
+	} else {
+		slog.Warn("No transcripts available for summary generation", "session_id", session.SessionID)
 	}
 
 	// Remove from active sessions
@@ -238,6 +239,25 @@ func (s *SessionTimeoutService) generateAutoSummary(ctx context.Context, session
 		return
 	}
 
+	// Check if summary already exists to prevent duplicates
+	var existingSummary models.InterviewSummary
+	err := s.db.Where("session_id = ?", session.ID).First(&existingSummary).Error
+	if err == nil {
+		slog.Info("Summary already exists for session, skipping generation", "session_id", session.ID)
+		return
+	}
+	if err != gorm.ErrRecordNotFound {
+		slog.Error("Failed to check for existing summary", "session_id", session.ID, "error", err)
+		return
+	}
+
+	// Get agent information for personality-based summary
+	var agent models.Agent
+	if err := s.db.Preload("User").First(&agent, session.AgentID).Error; err != nil {
+		slog.Error("Failed to load agent for summary generation", "session_id", session.ID, "error", err)
+		return
+	}
+
 	// Prepare conversation history for AI analysis
 	conversationHistory := make([]string, 0, len(transcripts))
 	for _, transcript := range transcripts {
@@ -245,22 +265,16 @@ func (s *SessionTimeoutService) generateAutoSummary(ctx context.Context, session
 			transcript.Speaker+": "+transcript.Content)
 	}
 
-	// Generate summary using Gemini
-	summaryPrompt := `Based on this interview conversation, provide a comprehensive analysis including:
-1. A narrative summary of the interview
-2. Key strengths demonstrated by the candidate
-3. Areas for improvement
-4. Specific recommendations for the candidate
-5. An overall score (0-100)
+	// Generate personality-based summary using Gemini
+	summaryPrompt := s.buildPersonalityBasedSummaryPrompt(agent, conversationHistory)
 
-Conversation:
-` + joinStrings(conversationHistory, "\n")
-
+	slog.Info("Generating AI summary with Gemini", "session_id", session.ID, "agent_name", agent.Name, "conversation_length", len(conversationHistory))
 	summary, err := s.geminiService.GenerateSummary(ctx, summaryPrompt)
 	if err != nil {
 		slog.Error("Failed to generate auto summary", "session_id", session.ID, "error", err)
 		return
 	}
+	slog.Info("AI summary generated successfully", "session_id", session.ID, "summary_length", len(summary))
 
 	// Parse the AI response to extract structured data
 	parsedSummary := s.parseAISummary(summary)
@@ -279,11 +293,113 @@ Conversation:
 		slog.Error("Failed to save auto-generated summary", "session_id", session.ID, "error", err)
 		return
 	}
+	slog.Info("Summary saved to database", "session_id", session.ID, "summary_id", interviewSummary.ID)
 
 	// Generate performance scores
 	s.generatePerformanceScores(ctx, session.ID, parsedSummary)
 
-	slog.Info("Auto summary generated for timed out session", "session_id", session.ID)
+	slog.Info("Auto summary generation completed successfully", "session_id", session.ID, "overall_score", parsedSummary.OverallScore)
+}
+
+// buildPersonalityBasedSummaryPrompt creates a summary prompt tailored to the agent's personality
+func (s *SessionTimeoutService) buildPersonalityBasedSummaryPrompt(agent models.Agent, conversationHistory []string) string {
+	// Determine scoring strictness based on agent personality
+	scoringGuidance := s.getScoringGuidance(agent.Personality)
+
+	// Build industry-specific context
+	industryContext := s.getIndustryContext(agent.Industry, agent.Level)
+
+	// Create personality-specific tone and expectations
+	personalityTone := s.getPersonalityTone(agent.Personality)
+
+	prompt := fmt.Sprintf(`You are %s, a %s interviewer in the %s industry. 
+Your personality: %s
+
+%s
+
+Based on this interview conversation, provide a comprehensive analysis that reflects your interviewing style and personality:
+
+1. A narrative summary of the interview (written in your voice and style)
+2. Key strengths demonstrated by the candidate
+3. Areas for improvement (be specific and constructive)
+4. Specific recommendations for the candidate's growth
+5. An overall score (0-100) using this scoring guidance: %s
+
+%s
+
+Conversation:
+%s
+
+Please structure your response as:
+SUMMARY: [Your narrative summary]
+STRENGTHS: [Key strengths]
+WEAKNESSES: [Areas for improvement]
+RECOMMENDATIONS: [Specific recommendations]
+SCORE: [Numerical score 0-100]`,
+		agent.Name,
+		agent.Level,
+		agent.Industry,
+		agent.Personality,
+		industryContext,
+		scoringGuidance,
+		personalityTone,
+		joinStrings(conversationHistory, "\n"))
+
+	return prompt
+}
+
+// getScoringGuidance returns scoring criteria based on agent personality
+func (s *SessionTimeoutService) getScoringGuidance(personality string) string {
+	personalityLower := strings.ToLower(personality)
+
+	if strings.Contains(personalityLower, "strict") || strings.Contains(personalityLower, "rigorous") || strings.Contains(personalityLower, "demanding") {
+		return "Be very strict and demanding. Only give high scores (80+) for exceptional performance. Average performance should score 50-70. Poor performance should score below 50. Focus heavily on technical accuracy and depth."
+	} else if strings.Contains(personalityLower, "encouraging") || strings.Contains(personalityLower, "supportive") || strings.Contains(personalityLower, "mentor") {
+		return "Be encouraging and supportive. Give credit for effort and potential. High scores (80+) for good performance with growth potential. Average performance should score 60-80. Focus on potential and learning attitude."
+	} else if strings.Contains(personalityLower, "grilling") || strings.Contains(personalityLower, "intense") || strings.Contains(personalityLower, "challenging") {
+		return "Be very challenging and thorough. Only give high scores (85+) for outstanding performance under pressure. Average performance should score 40-70. Poor performance should score below 40. Focus on handling pressure and technical depth."
+	} else if strings.Contains(personalityLower, "friendly") || strings.Contains(personalityLower, "approachable") || strings.Contains(personalityLower, "collaborative") {
+		return "Be fair and balanced. High scores (80+) for strong performance. Average performance should score 60-80. Focus on communication and collaboration skills."
+	}
+
+	// Default balanced approach
+	return "Be fair and balanced. High scores (80+) for strong performance. Average performance should score 60-80. Focus on both technical skills and soft skills."
+}
+
+// getIndustryContext returns industry-specific evaluation criteria
+func (s *SessionTimeoutService) getIndustryContext(industry, level string) string {
+	switch strings.ToLower(industry) {
+	case "software engineering", "technology":
+		return "Focus on technical problem-solving, code quality, system design thinking, and ability to learn new technologies. Consider algorithmic thinking, debugging skills, and understanding of software development practices."
+	case "finance", "banking":
+		return "Focus on analytical thinking, attention to detail, risk assessment, and understanding of financial concepts. Consider quantitative skills, regulatory knowledge, and market awareness."
+	case "consulting":
+		return "Focus on problem-solving frameworks, client communication, business acumen, and structured thinking. Consider case study performance, presentation skills, and strategic thinking."
+	case "marketing", "sales":
+		return "Focus on creativity, communication skills, market understanding, and customer orientation. Consider campaign thinking, brand awareness, and persuasive abilities."
+	case "healthcare", "medical":
+		return "Focus on attention to detail, patient care orientation, medical knowledge, and ethical considerations. Consider clinical thinking, empathy, and professional standards."
+	default:
+		return "Focus on relevant technical skills, problem-solving abilities, communication, and cultural fit for the role."
+	}
+}
+
+// getPersonalityTone returns tone guidance based on agent personality
+func (s *SessionTimeoutService) getPersonalityTone(personality string) string {
+	personalityLower := strings.ToLower(personality)
+
+	if strings.Contains(personalityLower, "strict") || strings.Contains(personalityLower, "rigorous") {
+		return "Write your feedback in a direct, professional tone. Be specific about shortcomings and don't sugarcoat issues. Use precise technical language."
+	} else if strings.Contains(personalityLower, "encouraging") || strings.Contains(personalityLower, "supportive") {
+		return "Write your feedback in an encouraging, constructive tone. Focus on potential and growth opportunities. Be supportive while being honest about areas for improvement."
+	} else if strings.Contains(personalityLower, "grilling") || strings.Contains(personalityLower, "intense") {
+		return "Write your feedback in a direct, challenging tone. Be thorough in your analysis and don't hold back on criticism. Focus on performance under pressure."
+	} else if strings.Contains(personalityLower, "friendly") || strings.Contains(personalityLower, "approachable") {
+		return "Write your feedback in a warm, professional tone. Balance constructive criticism with positive reinforcement. Be encouraging while maintaining professionalism."
+	}
+
+	// Default professional tone
+	return "Write your feedback in a professional, balanced tone. Be constructive and specific in your recommendations."
 }
 
 type ParsedSummary struct {

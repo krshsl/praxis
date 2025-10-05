@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { apiService } from 'services/api'
 import type { Agent } from 'services/api'
 import { Button } from 'components/ui/Button'
 import { Modal } from 'components/ui/Modal'
 import { SearchableTable } from 'components/ui/SearchableTable'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from 'components/ui/Select'
+import { InterviewStartModal } from 'components/InterviewStartModal'
 
 export function AgentsPage() {
-  const navigate = useNavigate()
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -17,7 +16,8 @@ export function AgentsPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null)
   const [deletingAgent, setDeletingAgent] = useState<Agent | null>(null)
-  const [startingAgentId, setStartingAgentId] = useState<string | null>(null)
+  const [showInterviewModal, setShowInterviewModal] = useState(false)
+  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
 
   useEffect(() => {
     loadAgents()
@@ -93,17 +93,14 @@ export function AgentsPage() {
     }
   }
 
-  const startInterview = async (agentId: string) => {
-    try {
-      setStartingAgentId(agentId)
-      await apiService.createSession(agentId)
-      navigate('/interview')
-    } catch (err) {
-      console.error('Failed to start interview:', err)
-      setError('Failed to start interview')
-    } finally {
-      setStartingAgentId(null)
-    }
+  const showInterviewStartModal = (agent: Agent) => {
+    setSelectedAgent(agent)
+    setShowInterviewModal(true)
+  }
+
+  const handleInterviewModalClose = () => {
+    setShowInterviewModal(false)
+    setSelectedAgent(null)
   }
 
 
@@ -113,12 +110,12 @@ export function AgentsPage() {
       label: 'Name',
       render: (_value: any, agent: Agent) => (
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-bold text-sm">
+          <div className="w-10 h-10 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0">
             {agent.name.charAt(0)}
           </div>
-          <div>
-            <div className="font-medium">{agent.name}</div>
-            <div className="text-sm text-muted-foreground">{agent.industry || 'No industry'}</div>
+          <div className="min-w-0 flex-1">
+            <div className="font-medium truncate">{agent.name}</div>
+            <div className="text-sm text-muted-foreground truncate">{agent.industry || 'No industry'}</div>
           </div>
         </div>
       )
@@ -127,7 +124,7 @@ export function AgentsPage() {
       key: 'description' as keyof Agent,
       label: 'Description',
       render: (_value: any) => (
-        <div className="max-w-xs truncate">{_value || 'No description'}</div>
+        <div className="max-w-[200px] truncate text-xs text-muted-foreground leading-tight">{_value || 'No description'}</div>
       )
     },
     {
@@ -159,10 +156,9 @@ export function AgentsPage() {
           <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
-              onClick={() => startInterview(agent.id)}
-              disabled={startingAgentId === agent.id}
+              onClick={() => showInterviewStartModal(agent)}
             >
-              {startingAgentId === agent.id ? 'Starting…' : 'Start Interview'}
+              Start Interview
             </Button>
             {!isDefaultAgent && (
               <Button
@@ -227,8 +223,8 @@ export function AgentsPage() {
       <SearchableTable
         data={agents}
         columns={agentColumns}
-        searchFields={['name', 'description', 'industry']}
-        searchPlaceholder="Search agents by name, description, or industry..."
+        searchFields={['name', 'description', 'industry', 'level', 'personality']}
+        searchPlaceholder="Search by name, description, industry, level, or personality..."
         emptyMessage="No agents found. Create your first agent above!"
       />
 
@@ -289,6 +285,13 @@ export function AgentsPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Interview Start Modal */}
+      <InterviewStartModal
+        isOpen={showInterviewModal}
+        onClose={handleInterviewModalClose}
+        agent={selectedAgent}
+      />
     </div>
   )
 }

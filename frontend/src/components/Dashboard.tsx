@@ -6,6 +6,7 @@ import { Card } from 'components/ui/Card'
 import { Button } from 'components/ui/Button'
 import { SearchableTable } from 'components/ui/SearchableTable'
 import { Avatar } from 'components/ui/Avatar'
+import { InterviewStartModal } from 'components/InterviewStartModal'
 import { useConversationStore } from 'store/useStore'
 
 export function Dashboard() {
@@ -14,6 +15,8 @@ export function Dashboard() {
   const [sessions, setSessions] = useState<Session[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showInterviewModal, setShowInterviewModal] = useState(false)
+  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
 
   useEffect(() => {
     loadData()
@@ -29,7 +32,9 @@ export function Dashboard() {
         apiService.getSessions()
       ])
       
-      setAgents(agentsResponse.agents)
+      // Filter for default agents only (agents without user_id)
+      const defaultAgents = agentsResponse.agents.filter(agent => !agent.user_id)
+      setAgents(defaultAgents)
       setSessions(sessionsResponse.sessions)
     } catch (err) {
       setError('Failed to load data')
@@ -39,15 +44,14 @@ export function Dashboard() {
     }
   }
 
-  const startSession = async (agentId: string) => {
-    try {
-      const response = await apiService.createSession(agentId)
-      useConversationStore.getState().setCurrentSession(response.session.id)
-      navigate('/interview')
-    } catch (err) {
-      console.error('Failed to start session:', err)
-      alert('Failed to start interview')
-    }
+  const showInterviewStartModal = (agent: Agent) => {
+    setSelectedAgent(agent)
+    setShowInterviewModal(true)
+  }
+
+  const handleModalClose = () => {
+    setShowInterviewModal(false)
+    setSelectedAgent(null)
   }
 
   const startCodingSession = async (agentId: string) => {
@@ -138,18 +142,25 @@ export function Dashboard() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* AI Agents Section - Top 1/3 */}
         <div className="h-1/3 p-6 border-b border-border">
-          <h1 className="text-2xl font-bold mb-4 text-foreground">Available AI Interviewers</h1>
+          <h1 className="text-2xl font-bold mb-4 text-foreground">Default AI Interviewers</h1>
           <div className="flex space-x-4 overflow-x-auto pb-2">
-            {agents.map((agent) => (
+            {agents.length === 0 ? (
+              <div className="flex-1 text-center py-8">
+                <p className="text-muted-foreground">No default agents available</p>
+              </div>
+            ) : (
+              agents.map((agent) => (
               <Card key={agent.id} className="min-w-[200px] p-4 flex-shrink-0 bg-card border-border">
                 <div className="text-center">
-                  <Avatar 
-                    name={agent.name}
-                    role="ai"
-                    className="w-16 h-16 mx-auto mb-3"
-                  />
+                  <div className="flex justify-center mb-3">
+                    <Avatar 
+                      name={agent.name}
+                      role="ai"
+                      className="w-16 h-16"
+                    />
+                  </div>
                   <h3 className="font-semibold text-lg mb-2 text-card-foreground">{agent.name}</h3>
-                  <p className="text-muted-foreground text-sm mb-3 line-clamp-2">{agent.description}</p>
+                  <p className="text-muted-foreground text-xs mb-3 line-clamp-3">{agent.description}</p>
                   <div className="flex flex-wrap gap-1 mb-4 justify-center">
                     {agent.industry && (
                       <span className="px-2 py-1 bg-orange-3 text-orange-11 text-xs rounded">
@@ -164,7 +175,7 @@ export function Dashboard() {
                   </div>
                   <div className="space-y-2">
                     <Button 
-                      onClick={() => startSession(agent.id)}
+                      onClick={() => showInterviewStartModal(agent)}
                       className="w-full"
                       size="sm"
                     >
@@ -181,7 +192,8 @@ export function Dashboard() {
                   </div>
                 </div>
               </Card>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
@@ -198,6 +210,13 @@ export function Dashboard() {
           />
         </div>
       </div>
+
+      {/* Interview Start Modal */}
+      <InterviewStartModal
+        isOpen={showInterviewModal}
+        onClose={handleModalClose}
+        agent={selectedAgent}
+      />
     </div>
   )
 }

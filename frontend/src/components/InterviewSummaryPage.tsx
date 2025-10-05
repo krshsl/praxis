@@ -3,20 +3,24 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from 'components/ui/Card'
 import { Button } from 'components/ui/Button'
 import { CircularProgress } from 'components/ui/CircularProgress'
+import { apiService } from 'services/api'
 
 interface InterviewSummary {
   id: string
   agent: {
     name: string
     industry: string
+    personality: string
+    level: string
   }
   started_at: string
   completed_at: string
   duration: number
   summary: string
   score: number
-  strengths: string[]
-  improvements: string[]
+  strengths: string
+  weaknesses: string
+  recommendations: string
   technical_skills: {
     skill: string
     rating: number
@@ -25,6 +29,7 @@ interface InterviewSummary {
     skill: string
     rating: number
   }[]
+  isGenerating?: boolean
 }
 
 export function InterviewSummaryPage() {
@@ -45,47 +50,69 @@ export function InterviewSummaryPage() {
       setLoading(true)
       setError(null)
       
-      // Mock data - in real app, you'd fetch from API
-      const mockSummary: InterviewSummary = {
-        id,
-        agent: {
-          name: 'Sarah Chen',
-          industry: 'Software Engineering'
-        },
-        started_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
-        completed_at: new Date().toISOString(),
-        duration: 45, // minutes
-        summary: `The candidate demonstrated strong problem-solving skills and clear communication throughout the interview. They showed good understanding of data structures and algorithms, particularly in the coding challenge where they implemented an efficient solution to the two-sum problem. The candidate asked thoughtful questions about the company culture and role expectations, showing genuine interest in the position. Areas for improvement include system design knowledge and handling edge cases in code. Overall, this was a solid performance that would be suitable for a mid-level developer position.`,
-        score: 78,
-        strengths: [
-          'Clear communication and articulation',
-          'Strong algorithmic thinking',
-          'Good problem-solving approach',
-          'Asks thoughtful questions',
-          'Shows enthusiasm for the role'
-        ],
-        improvements: [
-          'System design knowledge could be stronger',
-          'Consider edge cases more thoroughly',
-          'Practice explaining complex concepts',
-          'Learn more about distributed systems'
-        ],
-        technical_skills: [
-          { skill: 'Algorithms', rating: 85 },
-          { skill: 'Data Structures', rating: 80 },
-          { skill: 'System Design', rating: 60 },
-          { skill: 'Code Quality', rating: 75 },
-          { skill: 'Testing', rating: 70 }
-        ],
-        communication_skills: [
-          { skill: 'Clarity', rating: 90 },
-          { skill: 'Confidence', rating: 75 },
-          { skill: 'Listening', rating: 85 },
-          { skill: 'Questioning', rating: 80 }
-        ]
+      // First get the session data
+      const sessionResponse = await apiService.getSession(id)
+      const session = sessionResponse.session
+      
+      // Try to get the summary
+      let summary = null
+      try {
+        const summaryResponse = await apiService.getSummary(id)
+        summary = summaryResponse.summary
+      } catch (summaryError: any) {
+        // If summary is still being generated (202), show loading state
+        if (summaryError.response?.status === 202) {
+          setSummary({
+            id: session.id,
+            agent: {
+              name: session.agent?.name || 'Unknown',
+              industry: session.agent?.industry || 'Unknown',
+              personality: session.agent?.personality || 'Unknown',
+              level: session.agent?.level || 'Unknown'
+            },
+            started_at: session.started_at,
+            completed_at: session.ended_at || new Date().toISOString(),
+            duration: Math.round(session.duration / 60),
+            summary: 'Summary is being generated. Please wait...',
+            score: 0,
+            strengths: 'Analysis in progress...',
+            weaknesses: 'Analysis in progress...',
+            recommendations: 'Analysis in progress...',
+            technical_skills: [],
+            communication_skills: [],
+            isGenerating: true
+          })
+          setLoading(false)
+          return
+        } else if (summaryError.response?.status === 404) {
+          console.log('Summary not found for session:', id)
+        } else {
+          throw summaryError
+        }
       }
       
-      setSummary(mockSummary)
+      const interviewSummary: InterviewSummary = {
+        id: session.id,
+        agent: {
+          name: session.agent?.name || 'Unknown',
+          industry: session.agent?.industry || 'Unknown',
+          personality: session.agent?.personality || 'Unknown',
+          level: session.agent?.level || 'Unknown'
+        },
+        started_at: session.started_at,
+        completed_at: session.ended_at || new Date().toISOString(),
+        duration: Math.round(session.duration / 60),
+        summary: summary?.summary || 'Summary is being generated. Please check back in a few minutes.',
+        score: summary?.overall_score || 0,
+        strengths: summary?.strengths || 'Analysis in progress...',
+        weaknesses: summary?.weaknesses || 'Analysis in progress...',
+        recommendations: summary?.recommendations || 'Analysis in progress...',
+        technical_skills: [],
+        communication_skills: [],
+        isGenerating: !summary
+      }
+      
+      setSummary(interviewSummary)
     } catch (err) {
       setError('Failed to load interview summary')
       console.error('Summary load error:', err)
@@ -98,6 +125,67 @@ export function InterviewSummaryPage() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-lg">Loading interview summary...</div>
+      </div>
+    )
+  }
+
+  // Show generating state when summary is being created
+  if (summary?.isGenerating) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 py-8">
+          <div className="max-w-4xl mx-auto">
+            <div className="text-center mb-8">
+              <h1 className="text-3xl font-bold mb-2">Interview Summary</h1>
+              <p className="text-muted-foreground">Your interview analysis is being generated</p>
+            </div>
+
+            <Card className="p-8 text-center">
+              <div className="space-y-6">
+                <div className="flex justify-center">
+                  <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary"></div>
+                </div>
+                
+                <div>
+                  <h2 className="text-2xl font-semibold mb-2">AI is analyzing your interview</h2>
+                  <p className="text-muted-foreground mb-4">
+                    Our AI is reviewing your responses and generating a personalized summary with detailed feedback.
+                  </p>
+                </div>
+
+                <div className="bg-muted p-4 rounded-lg">
+                  <h3 className="font-medium mb-2">What's happening?</h3>
+                  <ul className="text-sm text-muted-foreground space-y-1 text-left">
+                    <li>• Analyzing your responses and communication style</li>
+                    <li>• Evaluating technical knowledge and problem-solving skills</li>
+                    <li>• Generating personalized feedback and recommendations</li>
+                    <li>• Calculating performance scores</li>
+                  </ul>
+                </div>
+
+                <div className="flex justify-center space-x-4">
+                  <Button
+                    onClick={() => sessionId && loadSummary(sessionId)}
+                    className="bg-primary text-primary-foreground"
+                  >
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Check Status
+                  </Button>
+                  <Button
+                    onClick={() => navigate('/dashboard')}
+                    variant="outline"
+                  >
+                    Back to Dashboard
+                  </Button>
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  This usually takes 1-2 minutes. You can check back later or we'll notify you when it's ready.
+                </p>
+              </div>
+            </Card>
+          </div>
+        </div>
       </div>
     )
   }
@@ -152,6 +240,9 @@ export function InterviewSummaryPage() {
                     {summary.agent.name}
                   </div>
                   <div className="text-sm text-muted-foreground">Interviewer</div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {summary.agent.personality} • {summary.agent.level}
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -164,6 +255,24 @@ export function InterviewSummaryPage() {
             </CardHeader>
             <CardContent>
               <p className="text-foreground leading-relaxed">{summary.summary}</p>
+              {summary.summary.includes('being generated') && (
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                      <span className="text-sm text-blue-700">AI is analyzing your interview and generating a personalized summary...</span>
+                    </div>
+                    <Button
+                      onClick={() => sessionId && loadSummary(sessionId)}
+                      size="sm"
+                      variant="outline"
+                      className="text-blue-700 border-blue-300 hover:bg-blue-100"
+                    >
+                      Refresh
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -174,14 +283,7 @@ export function InterviewSummaryPage() {
                 <CardTitle className="text-lime-11">Strengths</CardTitle>
               </CardHeader>
               <CardContent>
-                <ul className="space-y-2">
-                  {summary.strengths.map((strength, index) => (
-                    <li key={index} className="flex items-start space-x-2">
-                      <span className="text-lime-9 mt-1">✓</span>
-                      <span className="text-sm text-foreground">{strength}</span>
-                    </li>
-                  ))}
-                </ul>
+                <p className="text-sm text-foreground leading-relaxed">{summary.strengths}</p>
               </CardContent>
             </Card>
 
@@ -190,17 +292,20 @@ export function InterviewSummaryPage() {
                 <CardTitle className="text-orange-11">Areas for Improvement</CardTitle>
               </CardHeader>
               <CardContent>
-                <ul className="space-y-2">
-                  {summary.improvements.map((improvement, index) => (
-                    <li key={index} className="flex items-start space-x-2">
-                      <span className="text-orange-9 mt-1">•</span>
-                      <span className="text-sm text-foreground">{improvement}</span>
-                    </li>
-                  ))}
-                </ul>
+                <p className="text-sm text-foreground leading-relaxed">{summary.weaknesses}</p>
               </CardContent>
             </Card>
           </div>
+
+          {/* Recommendations */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-blue-11">Recommendations</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-foreground leading-relaxed">{summary.recommendations}</p>
+            </CardContent>
+          </Card>
 
         </div>
 
@@ -212,20 +317,31 @@ export function InterviewSummaryPage() {
             </CardHeader>
             <CardContent className="text-center">
               <CircularProgress
-                value={summary.score}
+                value={summary.score > 0 ? summary.score : 0}
                 size={150}
-                label="Overall Performance"
-                showPercentage={true}
+                label={summary.score > 0 ? "Overall Performance" : "Analysis in Progress"}
+                showPercentage={summary.score > 0}
                 className="mx-auto mb-6"
               />
               
               <div className="space-y-4">
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-foreground">{summary.score}%</div>
+                  <div className="text-2xl font-bold text-foreground">
+                    {summary.score > 0 ? `${summary.score}%` : 'Pending'}
+                  </div>
                   <div className="text-sm text-muted-foreground">
-                    {summary.score >= 80 ? 'Excellent' : 
-                     summary.score >= 70 ? 'Good' : 
-                     summary.score >= 60 ? 'Fair' : 'Needs Improvement'}
+                    {summary.score > 0 ? (
+                      summary.score >= 80 ? 'Excellent' : 
+                      summary.score >= 70 ? 'Good' : 
+                      summary.score >= 60 ? 'Fair' : 'Needs Improvement'
+                    ) : 'Analysis in progress...'}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-2 p-2 bg-muted rounded">
+                    {summary.score > 0 ? (
+                      `Scored by ${summary.agent.name} (${summary.agent.personality} interviewer)`
+                    ) : (
+                      'AI is analyzing your performance...'
+                    )}
                   </div>
                 </div>
 
@@ -233,13 +349,19 @@ export function InterviewSummaryPage() {
                   <div className="flex justify-between">
                     <span className="text-foreground">Technical Skills</span>
                     <span className="font-medium text-foreground">
-                      {Math.round(summary.technical_skills.reduce((acc, skill) => acc + skill.rating, 0) / summary.technical_skills.length)}%
+                      {summary.technical_skills.length > 0 
+                        ? Math.round(summary.technical_skills.reduce((acc, skill) => acc + skill.rating, 0) / summary.technical_skills.length)
+                        : 'N/A'
+                      }%
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-foreground">Communication</span>
                     <span className="font-medium text-foreground">
-                      {Math.round(summary.communication_skills.reduce((acc, skill) => acc + skill.rating, 0) / summary.communication_skills.length)}%
+                      {summary.communication_skills.length > 0 
+                        ? Math.round(summary.communication_skills.reduce((acc, skill) => acc + skill.rating, 0) / summary.communication_skills.length)
+                        : 'N/A'
+                      }%
                     </span>
                   </div>
                 </div>
@@ -262,20 +384,24 @@ export function InterviewSummaryPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {summary.technical_skills.map((skill, index) => (
-                    <div key={index}>
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-sm font-medium text-foreground">{skill.skill}</span>
-                        <span className="text-sm text-muted-foreground">{skill.rating}%</span>
+                  {summary.technical_skills.length > 0 ? (
+                    summary.technical_skills.map((skill, index) => (
+                      <div key={`tech-${skill.skill}-${index}`}>
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-sm font-medium text-foreground">{skill.skill}</span>
+                          <span className="text-sm text-muted-foreground">{skill.rating}%</span>
+                        </div>
+                        <div className="w-full bg-muted rounded-full h-2">
+                          <div
+                            className="bg-primary h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${skill.rating}%` }}
+                          />
+                        </div>
                       </div>
-                      <div className="w-full bg-muted rounded-full h-2">
-                        <div
-                          className="bg-primary h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${skill.rating}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No technical skills data available</p>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -286,20 +412,24 @@ export function InterviewSummaryPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {summary.communication_skills.map((skill, index) => (
-                    <div key={index}>
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-sm font-medium text-foreground">{skill.skill}</span>
-                        <span className="text-sm text-muted-foreground">{skill.rating}%</span>
+                  {summary.communication_skills.length > 0 ? (
+                    summary.communication_skills.map((skill, index) => (
+                      <div key={`comm-${skill.skill}-${index}`}>
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-sm font-medium text-foreground">{skill.skill}</span>
+                          <span className="text-sm text-muted-foreground">{skill.rating}%</span>
+                        </div>
+                        <div className="w-full bg-muted rounded-full h-2">
+                          <div
+                            className="bg-primary h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${skill.rating}%` }}
+                          />
+                        </div>
                       </div>
-                      <div className="w-full bg-muted rounded-full h-2">
-                        <div
-                          className="bg-primary h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${skill.rating}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No communication skills data available</p>
+                  )}
                 </div>
               </CardContent>
             </Card>

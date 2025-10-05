@@ -207,6 +207,17 @@ class ApiService {
     return response.data
   }
 
+  async deleteSession(id: string): Promise<void> {
+    await apiClient.delete(`/sessions/${id}`)
+  }
+
+  async bulkDeleteSessions(sessionIds: string[]): Promise<{ message: string; deleted_count: number }> {
+    const response = await apiClient.delete<{ message: string; deleted_count: number }>('/sessions/bulk', {
+      data: { session_ids: sessionIds }
+    })
+    return response.data
+  }
+
   // Transcript methods
   async getTranscripts(sessionId: string): Promise<{ transcripts: Transcript[] }> {
     const response = await apiClient.get<{ transcripts: Transcript[] }>(`/transcripts/session/${sessionId}`)
@@ -219,8 +230,8 @@ class ApiService {
   }
 
   // Summary methods
-  async getSummary(sessionId: string): Promise<{ summary: Summary }> {
-    const response = await apiClient.get<{ summary: Summary }>(`/summaries/session/${sessionId}`)
+  async getSummary(sessionId: string): Promise<{ summary: Summary; status?: string }> {
+    const response = await apiClient.get<{ summary: Summary; status?: string }>(`/summaries/session/${sessionId}`)
     return response.data
   }
 

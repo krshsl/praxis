@@ -76,3 +76,44 @@ func (e *ElevenLabsService) TextToSpeech(ctx context.Context, text string) (io.R
 	slog.Info("Generated audio from ElevenLabs", "text_length", len(text))
 	return resp.Body, nil
 }
+
+// TextToSpeechWithVoice allows specifying a custom voice ID
+func (e *ElevenLabsService) TextToSpeechWithVoice(ctx context.Context, text string, voiceID string) (io.ReadCloser, error) {
+	request := ElevenLabsRequest{
+		Text:    text,
+		ModelID: "eleven_turbo_v2",
+		VoiceID: voiceID,
+		VoiceSettings: VoiceSettings{
+			Stability:       0.5,
+			SimilarityBoost: 0.5,
+		},
+	}
+
+	jsonData, err := json.Marshal(request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	url := fmt.Sprintf("https://api.elevenlabs.io/v1/text-to-speech/%s", voiceID)
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("xi-api-key", e.apiKey)
+
+	resp, err := e.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return nil, fmt.Errorf("elevenlabs API error: %d - %s", resp.StatusCode, string(body))
+	}
+
+	slog.Info("Generated audio from ElevenLabs (custom voice)", "text_length", len(text), "voice_id", voiceID)
+	return resp.Body, nil
+}

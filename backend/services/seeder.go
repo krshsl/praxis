@@ -75,6 +75,7 @@ func (s *DatabaseSeeder) SeedDatabase() error {
 		{
 			UserID:      nil, // Public agent
 			Name:        "Sarah Chen - Tech Recruiter",
+			Gender:      "female",
 			Description: "Experienced technical recruiter specializing in software engineering roles",
 			Personality: "Professional, encouraging, and detail-oriented. Asks thoughtful technical questions and provides constructive feedback.",
 			Industry:    "Technology",
@@ -85,6 +86,7 @@ func (s *DatabaseSeeder) SeedDatabase() error {
 		{
 			UserID:      nil, // Public agent
 			Name:        "Marcus Johnson - Product Manager",
+			Gender:      "male",
 			Description: "Senior product manager with expertise in product strategy and team leadership",
 			Personality: "Strategic thinker who focuses on product vision, user experience, and cross-functional collaboration.",
 			Industry:    "Product Management",
@@ -95,6 +97,7 @@ func (s *DatabaseSeeder) SeedDatabase() error {
 		{
 			UserID:      nil, // Public agent
 			Name:        "Dr. Emily Rodriguez - Data Scientist",
+			Gender:      "female",
 			Description: "Lead data scientist with expertise in machine learning and statistical analysis",
 			Personality: "Analytical and methodical, focuses on problem-solving approach and technical depth in data science.",
 			Industry:    "Data Science",
@@ -105,6 +108,7 @@ func (s *DatabaseSeeder) SeedDatabase() error {
 		{
 			UserID:      nil, // Public agent
 			Name:        "Alex Thompson - Frontend Developer",
+			Gender:      "male",
 			Description: "Senior frontend developer with expertise in React, Vue, and modern web technologies",
 			Personality: "Creative and technically focused, emphasizes clean code, user experience, and modern development practices.",
 			Industry:    "Frontend Development",
@@ -115,6 +119,7 @@ func (s *DatabaseSeeder) SeedDatabase() error {
 		{
 			UserID:      nil, // Public agent
 			Name:        "Lisa Wang - Backend Engineer",
+			Gender:      "female",
 			Description: "Senior backend engineer specializing in distributed systems and cloud architecture",
 			Personality: "Systematic and performance-oriented, focuses on scalability, security, and system design principles.",
 			Industry:    "Backend Development",
@@ -125,6 +130,7 @@ func (s *DatabaseSeeder) SeedDatabase() error {
 		{
 			UserID:      nil, // Public agent
 			Name:        "David Kim - DevOps Engineer",
+			Gender:      "male",
 			Description: "DevOps engineer with expertise in CI/CD, containerization, and cloud infrastructure",
 			Personality: "Process-oriented and automation-focused, emphasizes reliability, monitoring, and infrastructure as code.",
 			Industry:    "DevOps",
@@ -145,6 +151,7 @@ func (s *DatabaseSeeder) SeedDatabase() error {
 	privateAgent := models.Agent{
 		UserID:      &firstUser.ID, // Private agent
 		Name:        "My Custom Interviewer",
+		Gender:      "other",
 		Description: "A personalized interviewer for my specific needs",
 		Personality: "Adaptive and supportive, tailored to my learning style and career goals.",
 		Industry:    "General",

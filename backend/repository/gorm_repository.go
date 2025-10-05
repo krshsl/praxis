@@ -339,3 +339,78 @@ func (r *GORMRepository) GetAgent(ctx context.Context, agentID string) (*models.
 	}
 	return &agent, nil
 }
+
+// DeleteInterviewSession deletes an interview session and all related data
+func (r *GORMRepository) DeleteInterviewSession(ctx context.Context, sessionID string) error {
+	// Start a transaction to ensure all related data is deleted
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Delete performance scores first
+		if err := tx.Where("session_id = ?", sessionID).Delete(&models.PerformanceScore{}).Error; err != nil {
+			slog.Error("Failed to delete performance scores", "error", err, "session_id", sessionID)
+			return err
+		}
+
+		// Delete interview summary
+		if err := tx.Where("session_id = ?", sessionID).Delete(&models.InterviewSummary{}).Error; err != nil {
+			slog.Error("Failed to delete interview summary", "error", err, "session_id", sessionID)
+			return err
+		}
+
+		// Delete interview transcripts
+		if err := tx.Where("session_id = ?", sessionID).Delete(&models.InterviewTranscript{}).Error; err != nil {
+			slog.Error("Failed to delete interview transcripts", "error", err, "session_id", sessionID)
+			return err
+		}
+
+		// Finally delete the session itself
+		if err := tx.Where("id = ?", sessionID).Delete(&models.InterviewSession{}).Error; err != nil {
+			slog.Error("Failed to delete interview session", "error", err, "session_id", sessionID)
+			return err
+		}
+
+		slog.Info("Interview session and related data deleted", "session_id", sessionID)
+		return nil
+	})
+}
+
+// BulkDeleteInterviewSessions deletes multiple interview sessions and all related data
+func (r *GORMRepository) BulkDeleteInterviewSessions(ctx context.Context, sessionIDs []string) (int, error) {
+	if len(sessionIDs) == 0 {
+		return 0, nil
+	}
+
+	var deletedCount int
+	// Start a transaction to ensure all related data is deleted
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Delete performance scores first
+		if err := tx.Where("session_id IN ?", sessionIDs).Delete(&models.PerformanceScore{}).Error; err != nil {
+			slog.Error("Failed to delete performance scores", "error", err, "session_ids", sessionIDs)
+			return err
+		}
+
+		// Delete interview summaries
+		if err := tx.Where("session_id IN ?", sessionIDs).Delete(&models.InterviewSummary{}).Error; err != nil {
+			slog.Error("Failed to delete interview summaries", "error", err, "session_ids", sessionIDs)
+			return err
+		}
+
+		// Delete interview transcripts
+		if err := tx.Where("session_id IN ?", sessionIDs).Delete(&models.InterviewTranscript{}).Error; err != nil {
+			slog.Error("Failed to delete interview transcripts", "error", err, "session_ids", sessionIDs)
+			return err
+		}
+
+		// Finally delete the sessions themselves
+		result := tx.Where("id IN ?", sessionIDs).Delete(&models.InterviewSession{})
+		if result.Error != nil {
+			slog.Error("Failed to delete interview sessions", "error", result.Error, "session_ids", sessionIDs)
+			return result.Error
+		}
+
+		deletedCount = int(result.RowsAffected)
+		slog.Info("Bulk interview sessions and related data deleted", "deleted_count", deletedCount, "session_ids", sessionIDs)
+		return nil
+	})
+
+	return deletedCount, err
+}
