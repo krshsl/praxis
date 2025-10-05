@@ -1,0 +1,513 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+/* Radix UI Color System */
+:root, .light, .light-theme {
+  --orange-1: #f7f6f5;
+  --orange-2: #f6f1ed;
+  --orange-3: #f1e6de;
+  --orange-4: #eddbcc;
+  --orange-5: #e8cfbb;
+  --orange-6: #e1c2a9;
+  --orange-7: #d8b091;
+  --orange-8: #ca986f;
+  --orange-9: #cc9a71;
+  --orange-10: #c08f66;
+  --orange-11: #815630;
+  --orange-12: #403329;
+
+  --orange-a1: #f4f4ffa1;
+  --orange-a2: #e8dfff55;
+  --orange-a3: #6c089c15;
+  --orange-a4: #7e032520;
+  --orange-a5: #890c012e;
+  --orange-a6: #90220142;
+  --orange-a7: #982f015d;
+  --orange-a8: #9a3b0083;
+  --orange-a9: #9d3c0081;
+  --orange-a10: #8f38008d;
+  --orange-a11: #602b01ca;
+  --orange-a12: #170901d2;
+
+  --orange-contrast: #fff;
+  --orange-surface: #f5efefcc;
+  --orange-indicator: #cc9a71;
+  --orange-track: #cc9a71;
+
+  --gray-1: #fff4ed;
+  --gray-2: #fdefe5;
+  --gray-3: #f9e4d5;
+  --gray-4: #f9dac3;
+  --gray-5: #f4d1b8;
+  --gray-6: #f3c6a6;
+  --gray-7: #f0b88f;
+  --gray-8: #e89f67;
+  --gray-9: #c06a17;
+  --gray-10: #b16216;
+  --gray-11: #86480d;
+  --gray-12: #3b1200;
+
+  --gray-a1: #fff4ed;
+  --gray-a2: #fd00fe0a;
+  --gray-a3: #d1073e17;
+  --gray-a4: #e21e0125;
+  --gray-a5: #d0290432;
+  --gray-a6: #d83d0346;
+  --gray-a7: #db4b0360;
+  --gray-a8: #d754008c;
+  --gray-a9: #b95a01e6;
+  --gray-a10: #a95201e7;
+  --gray-a11: #7f3d00f1;
+  --gray-a12: #3b1200;
+
+  --gray-contrast: #FFFFFF;
+  --gray-surface: #ffffffcc;
+  --gray-indicator: #c06a17;
+  --gray-track: #c06a17;
+
+  /* Accent aliases (light): map generic accent-* to our orange palette */
+  --accent-1: var(--orange-1);
+  --accent-2: var(--orange-2);
+  --accent-3: var(--orange-3);
+  --accent-4: var(--orange-4);
+  --accent-5: var(--orange-5);
+  --accent-6: var(--orange-6);
+  --accent-7: var(--orange-7);
+  --accent-8: var(--orange-8);
+  --accent-9: var(--orange-9);
+  --accent-10: var(--orange-10);
+  --accent-11: var(--orange-11);
+  --accent-12: var(--orange-12);
+  --accent-a1: var(--orange-a1);
+  --accent-a2: var(--orange-a2);
+  --accent-a3: var(--orange-a3);
+  --accent-a4: var(--orange-a4);
+  --accent-a5: var(--orange-a5);
+  --accent-a6: var(--orange-a6);
+  --accent-a7: var(--orange-a7);
+  --accent-a8: var(--orange-a8);
+  --accent-a9: var(--orange-a9);
+  --accent-a10: var(--orange-a10);
+  --accent-a11: var(--orange-a11);
+  --accent-a12: var(--orange-a12);
+  --accent-contrast: var(--orange-contrast);
+  --accent-surface: var(--orange-surface);
+  --accent-indicator: var(--orange-indicator);
+  --accent-track: var(--orange-track);
+}
+
+:root, .light, .light-theme, .radix-themes {
+  --color-background: #fdfae4;
+  /* Keep background token simple; the global SVG canvas provides the rich backdrop */
+  --background-gradient: var(--color-background);
+
+  /* Semantic colors for Radix UI components */
+  --background: var(--background-gradient);
+  --foreground: var(--gray-12);
+  --card: var(--gray-1);
+  --card-foreground: var(--gray-12);
+  --popover: var(--gray-1);
+  --popover-foreground: var(--gray-12);
+  --primary: var(--orange-9);
+  --primary-foreground: var(--orange-contrast);
+  --secondary: var(--gray-3);
+  --secondary-foreground: var(--gray-12);
+  --muted: var(--gray-3);
+  --muted-foreground: var(--gray-11);
+  --accent: var(--orange-3);
+  --accent-foreground: var(--gray-12);
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: var(--gray-6);
+  --input: var(--gray-6);
+  --ring: var(--orange-9);
+  --radius: 0.5rem;
+}
+
+@supports (color: color(display-p3 1 1 1)) {
+  @media (color-gamut: p3) {
+    :root, .light, .light-theme {
+      --orange-1: oklch(97.4% 0.0017 60.35);
+      --orange-2: oklch(96.1% 0.0071 60.35);
+      --orange-3: oklch(93.2% 0.016 60.35);
+      --orange-4: oklch(90.1% 0.0282 60.35);
+      --orange-5: oklch(87% 0.0392 60.35);
+      --orange-6: oklch(83.5% 0.0491 60.35);
+      --orange-7: oklch(78.6% 0.0623 60.35);
+      --orange-8: oklch(71.7% 0.0817 60.35);
+      --orange-9: oklch(72.4% 0.0817 60.35);
+      --orange-10: oklch(68.7% 0.0817 60.35);
+      --orange-11: oklch(49.2% 0.0788 60.35);
+      --orange-12: oklch(33.4% 0.0247 60.35);
+
+      --orange-a1: color(display-p3 0.9569 0.9569 1 / 0.6);
+      --orange-a2: color(display-p3 0.8902 0.8549 1 / 0.28);
+      --orange-a3: color(display-p3 0.3529 0 0.5608 / 0.08);
+      --orange-a4: color(display-p3 0.4039 0 0.1176 / 0.12);
+      --orange-a5: color(display-p3 0.4627 0.0627 0.0039 / 0.179);
+      --orange-a6: color(display-p3 0.4941 0.1294 0.0039 / 0.253);
+      --orange-a7: color(display-p3 0.5255 0.1804 0.0039 / 0.353);
+      --orange-a8: color(display-p3 0.5294 0.2157 0.0039 / 0.492);
+      --orange-a9: color(display-p3 0.5373 0.2196 0.0039 / 0.483);
+      --orange-a10: color(display-p3 0.4941 0.2078 0 / 0.531);
+      --orange-a11: color(display-p3 0.3294 0.149 0 / 0.766);
+      --orange-a12: color(display-p3 0.0784 0.0235 0 / 0.818);
+
+      --orange-contrast: #fff;
+      --orange-surface: color(display-p3 0.9569 0.9373 0.9412 / 0.8);
+      --orange-indicator: oklch(72.4% 0.0817 60.35);
+      --orange-track: oklch(72.4% 0.0817 60.35);
+
+      --gray-1: oklch(97.4% 0.015 57.35);
+      --gray-2: oklch(96.1% 0.0201 57.35);
+      --gray-3: oklch(93.3% 0.0307 57.35);
+      --gray-4: oklch(90.8% 0.046 57.35);
+      --gray-5: oklch(88.4% 0.052 57.35);
+      --gray-6: oklch(85.8% 0.0676 57.35);
+      --gray-7: oklch(82.4% 0.0844 57.35);
+      --gray-8: oklch(76.2% 0.1128 57.35);
+      --gray-9: oklch(61.1% 0.1395 57.35);
+      --gray-10: oklch(57.5% 0.1302 57.35);
+      --gray-11: oklch(46.9% 0.107 57.35);
+      --gray-12: oklch(24.3% 0.1078 57.35);
+
+      --gray-a1: color(display-p3 1 0.9137 0.9961 / 0.334);
+      --gray-a2: color(display-p3 0.902 0 0.9059 / 0.044);
+      --gray-a3: color(display-p3 0.6627 0 0.2039 / 0.084);
+      --gray-a4: color(display-p3 0.7647 0.1137 0.0078 / 0.14);
+      --gray-a5: color(display-p3 0.698 0.1451 0.0039 / 0.187);
+      --gray-a6: color(display-p3 0.749 0.2314 0.0039 / 0.261);
+      --gray-a7: color(display-p3 0.7569 0.2706 0.0039 / 0.353);
+      --gray-a8: color(display-p3 0.7529 0.3059 0 / 0.514);
+      --gray-a9: color(display-p3 0.6392 0.2941 0 / 0.8);
+      --gray-a10: color(display-p3 0.5725 0.2667 0 / 0.814);
+      --gray-a11: color(display-p3 0.4235 0.1922 0 / 0.874);
+      --gray-a12: color(display-p3 0.2 0.0667 0 / 0.983);
+
+      --gray-contrast: #FFFFFF;
+      --gray-surface: color(display-p3 1 1 1 / 80%);
+      --gray-indicator: oklch(61.1% 0.1395 57.35);
+      --gray-track: oklch(61.1% 0.1395 57.35);
+
+      --color-background: oklch(98.5% 0.015 60.35);
+
+      --background-gradient: var(--color-background);
+
+      /* Accent aliases (light, P3) */
+      --accent-1: var(--orange-1);
+      --accent-2: var(--orange-2);
+      --accent-3: var(--orange-3);
+      --accent-4: var(--orange-4);
+      --accent-5: var(--orange-5);
+      --accent-6: var(--orange-6);
+      --accent-7: var(--orange-7);
+      --accent-8: var(--orange-8);
+      --accent-9: var(--orange-9);
+      --accent-10: var(--orange-10);
+      --accent-11: var(--orange-11);
+      --accent-12: var(--orange-12);
+      --accent-a1: var(--orange-a1);
+      --accent-a2: var(--orange-a2);
+      --accent-a3: var(--orange-a3);
+      --accent-a4: var(--orange-a4);
+      --accent-a5: var(--orange-a5);
+      --accent-a6: var(--orange-a6);
+      --accent-a7: var(--orange-a7);
+      --accent-a8: var(--orange-a8);
+      --accent-a9: var(--orange-a9);
+      --accent-a10: var(--orange-a10);
+      --accent-a11: var(--orange-a11);
+      --accent-a12: var(--orange-a12);
+      --accent-contrast: var(--orange-contrast);
+      --accent-surface: var(--orange-surface);
+      --accent-indicator: var(--orange-indicator);
+      --accent-track: var(--orange-track);
+    }
+  }
+}
+
+.dark, .dark-theme {
+  --lime-1: #050703;
+  --lime-2: #13180d;
+  --lime-3: #1e2814;
+  --lime-4: #293719;
+  --lime-5: #32441d;
+  --lime-6: #3d5323;
+  --lime-7: #4b6230;
+  --lime-8: #5b7341;
+  --lime-9: #c9e5ae;
+  --lime-10: #bfdba4;
+  --lime-11: #c3dea7;
+  --lime-12: #dcf9c0;
+
+  --lime-a1: #05070066;
+  --lime-a2: #ccf77712;
+  --lime-a3: #c1ff7622;
+  --lime-a4: #bdfc6b32;
+  --lime-a5: #bcfe673f;
+  --lime-a6: #bafd664f;
+  --lime-a7: #c3fe7a5e;
+  --lime-a8: #c9fd8e70;
+  --lime-a9: #dffec1e5;
+  --lime-a10: #deffbfda;
+  --lime-a11: #dffebfde;
+  --lime-a12: #e1ffc5f9;
+
+  --lime-contrast: #1b2510;
+  --lime-surface: #21291580;
+  --lime-indicator: #c9e5ae;
+  --lime-track: #c9e5ae;
+
+  --gray-1: #060702;
+  --gray-2: #16180f;
+  --gray-3: #202316;
+  --gray-4: #272b1d;
+  --gray-5: #2e3221;
+  --gray-6: #373c28;
+  --gray-7: #444b30;
+  --gray-8: #5c6541;
+  --gray-9: #687440;
+  --gray-10: #758150;
+  --gray-11: #aeb990;
+  --gray-12: #ecefe4;
+
+  --gray-a1: #85070002;
+  --gray-a2: #f6f79312;
+  --gray-a3: #f3fe9b1d;
+  --gray-a4: #eaf9a726;
+  --gray-a5: #eefba42d;
+  --gray-a6: #edfda837;
+  --gray-a7: #eaffa246;
+  --gray-a8: #eaffa361;
+  --gray-a9: #e5fd8a71;
+  --gray-a10: #e7fd9c7e;
+  --gray-a11: #f0fec6b8;
+  --gray-a12: #fcfff3ef;
+
+  --gray-contrast: #FFFFFF;
+  --gray-surface: rgba(0, 0, 0, 0.05);
+  --gray-indicator: #687440;
+  --gray-track: #687440;
+
+  /* Accent aliases (dark): map generic accent-* to our lime palette */
+  --accent-1: var(--lime-1);
+  --accent-2: var(--lime-2);
+  --accent-3: var(--lime-3);
+  --accent-4: var(--lime-4);
+  --accent-5: var(--lime-5);
+  --accent-6: var(--lime-6);
+  --accent-7: var(--lime-7);
+  --accent-8: var(--lime-8);
+  --accent-9: var(--lime-9);
+  --accent-10: var(--lime-10);
+  --accent-11: var(--lime-11);
+  --accent-12: var(--lime-12);
+  --accent-a1: var(--lime-a1);
+  --accent-a2: var(--lime-a2);
+  --accent-a3: var(--lime-a3);
+  --accent-a4: var(--lime-a4);
+  --accent-a5: var(--lime-a5);
+  --accent-a6: var(--lime-a6);
+  --accent-a7: var(--lime-a7);
+  --accent-a8: var(--lime-a8);
+  --accent-a9: var(--lime-a9);
+  --accent-a10: var(--lime-a10);
+  --accent-a11: var(--lime-a11);
+  --accent-a12: var(--lime-a12);
+  --accent-contrast: var(--lime-contrast);
+  --accent-surface: var(--lime-surface);
+  --accent-indicator: var(--lime-indicator);
+  --accent-track: var(--lime-track);
+}
+
+.dark, .dark-theme, :is(.dark, .dark-theme) :where(.radix-themes:not(.light, .light-theme)) {
+  --color-background: #050705;
+  --background-gradient: var(--color-background);
+
+  /* Semantic colors for Radix UI components (dark theme) */
+  --background: var(--background-gradient);
+}
+
+.dark, .dark-theme {
+  /* Semantic colors for Radix UI components (dark theme) */
+  --foreground: var(--gray-12);
+  /* Lift surfaces slightly so content panels aren’t pitch black */
+  --card: var(--gray-2);
+  --card-foreground: var(--gray-12);
+  --popover: var(--gray-2);
+  --popover-foreground: var(--gray-12);
+  --primary: var(--lime-9);
+  --primary-foreground: var(--lime-contrast);
+  /* Use mid grays for secondary/muted to add separation */
+  --secondary: var(--gray-4);
+  --secondary-foreground: var(--gray-12);
+  --muted: var(--gray-4);
+  --muted-foreground: var(--gray-11);
+  /* Keep accent tied to lime scale for interactive emphasis */
+  --accent: var(--lime-3);
+  --accent-foreground: var(--gray-12);
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  /* Sharpen borders and inputs a notch lighter */
+  --border: var(--gray-7);
+  --input: var(--gray-7);
+  --ring: var(--lime-9);
+  --radius: 0.5rem;
+}
+
+@supports (color: color(display-p3 1 1 1)) {
+  @media (color-gamut: p3) {
+    .dark, .dark-theme {
+      --lime-1: oklch(12.4% 0.0162 129.6);
+      --lime-2: oklch(19.9% 0.0218 129.6);
+      --lime-3: oklch(26.2% 0.0386 129.6);
+      --lime-4: oklch(31.4% 0.0529 129.6);
+      --lime-5: oklch(36.2% 0.0652 129.6);
+      --lime-6: oklch(41.1% 0.0773 129.6);
+      --lime-7: oklch(46.4% 0.0793 129.6);
+      --lime-8: oklch(52.4% 0.0793 129.6);
+      --lime-9: oklch(88.7% 0.0793 129.6);
+      --lime-10: oklch(85.7% 0.0793 129.6);
+      --lime-11: oklch(86.8% 0.0793 129.6);
+      --lime-12: oklch(94.6% 0.0793 129.6);
+
+      --lime-a1: color(display-p3 0.0196 0.0275 0 / 0.4);
+      --lime-a2: color(display-p3 0.8745 0.9922 0.5333 / 0.069);
+      --lime-a3: color(display-p3 0.8118 0.9961 0.5176 / 0.134);
+      --lime-a4: color(display-p3 0.8118 1 0.5059 / 0.194);
+      --lime-a5: color(display-p3 0.8157 1 0.4902 / 0.242);
+      --lime-a6: color(display-p3 0.8118 1 0.4863 / 0.303);
+      --lime-a7: color(display-p3 0.8314 1 0.549 / 0.363);
+      --lime-a8: color(display-p3 0.8471 1 0.6196 / 0.432);
+      --lime-a9: color(display-p3 0.902 1 0.7843 / 0.892);
+      --lime-a10: color(display-p3 0.898 1 0.7765 / 0.851);
+      --lime-a11: color(display-p3 0.9059 1 0.7765 / 0.863);
+      --lime-a12: color(display-p3 0.9137 1 0.7961 / 0.972);
+
+      --lime-contrast: #1b2510;
+      --lime-surface: color(display-p3 0.1333 0.1569 0.0863 / 0.5);
+      --lime-indicator: oklch(88.7% 0.0793 129.6);
+      --lime-track: oklch(88.7% 0.0793 129.6);
+
+      --gray-1: oklch(12.4% 0.0187 119.9);
+      --gray-2: oklch(20.3% 0.0179 119.9);
+      --gray-3: oklch(24.8% 0.0227 119.9);
+      --gray-4: oklch(27.9% 0.0249 119.9);
+      --gray-5: oklch(30.9% 0.0296 119.9);
+      --gray-6: oklch(34.6% 0.0351 119.9);
+      --gray-7: oklch(39.9% 0.0434 119.9);
+      --gray-8: oklch(48.8% 0.055 119.9);
+      --gray-9: oklch(53.5% 0.0762 119.9);
+      --gray-10: oklch(58.1% 0.0712 119.9);
+      --gray-11: oklch(76.6% 0.057 119.9);
+      --gray-12: oklch(94.7% 0.0153 119.9);
+
+      --gray-a1: color(display-p3 1 0.0314 0 / 0.004);
+      --gray-a2: color(display-p3 0.9882 0.9922 0.6471 / 0.069);
+      --gray-a3: color(display-p3 0.9922 1 0.6471 / 0.113);
+      --gray-a4: color(display-p3 0.9608 0.9961 0.6941 / 0.146);
+      --gray-a5: color(display-p3 0.9686 1 0.698 / 0.174);
+      --gray-a6: color(display-p3 0.9569 0.9961 0.698 / 0.214);
+      --gray-a7: color(display-p3 0.9333 1 0.6745 / 0.275);
+      --gray-a8: color(display-p3 0.9412 1 0.6824 / 0.38);
+      --gray-a9: color(display-p3 0.9216 1 0.6 / 0.44);
+      --gray-a10: color(display-p3 0.9255 1 0.6627 / 0.492);
+      --gray-a11: color(display-p3 0.9569 1 0.8039 / 0.718);
+      --gray-a12: color(display-p3 0.9922 1 0.9608 / 0.936);
+
+      --gray-contrast: #FFFFFF;
+      --gray-surface: color(display-p3 0 0 0 / 5%);
+      --gray-indicator: oklch(53.5% 0.0762 119.9);
+      --gray-track: oklch(53.5% 0.0762 119.9);
+
+      --color-background: oklch(12.4% 0.0187 119.9);
+
+      /* Accent aliases (dark, P3) */
+      --accent-1: var(--lime-1);
+      --accent-2: var(--lime-2);
+      --accent-3: var(--lime-3);
+      --accent-4: var(--lime-4);
+      --accent-5: var(--lime-5);
+      --accent-6: var(--lime-6);
+      --accent-7: var(--lime-7);
+      --accent-8: var(--lime-8);
+      --accent-9: var(--lime-9);
+      --accent-10: var(--lime-10);
+      --accent-11: var(--lime-11);
+      --accent-12: var(--lime-12);
+      --accent-a1: var(--lime-a1);
+      --accent-a2: var(--lime-a2);
+      --accent-a3: var(--lime-a3);
+      --accent-a4: var(--lime-a4);
+      --accent-a5: var(--lime-a5);
+      --accent-a6: var(--lime-a6);
+      --accent-a7: var(--lime-a7);
+      --accent-a8: var(--lime-a8);
+      --accent-a9: var(--lime-a9);
+      --accent-a10: var(--lime-a10);
+      --accent-a11: var(--lime-a11);
+      --accent-a12: var(--lime-a12);
+      --accent-contrast: var(--lime-contrast);
+      --accent-surface: var(--lime-surface);
+      --accent-indicator: var(--lime-indicator);
+      --accent-track: var(--lime-track);
+    }
+  }
+}
+
+/* Base styles */
+* {
+  border-color: var(--border);
+}
+
+body {
+  background: var(--background);
+  background-attachment: fixed;
+  min-height: 100vh;
+  color: var(--foreground);
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--gray-2);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--gray-6);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gray-7);
+}
+
+/* Animation utilities */
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { 
+    transform: translateY(10px); 
+    opacity: 0; 
+  }
+  to { 
+    transform: translateY(0); 
+    opacity: 1; 
+  }
+}

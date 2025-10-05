@@ -1,0 +1,52 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: praxis-backend-dev
+    env_file:
+      - ./backend/.env
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./backend:/app
+    networks:
+      - praxis-network
+    restart: unless-stopped
+    command: ["air", "-c", ".air.toml"]
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: praxis-frontend-dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - node_modules:/app/node_modules  # Preserve node_modules
+    networks:
+      - praxis-network
+    restart: unless-stopped
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+
+  proxy:
+    build:
+      context: ./proxy
+      dockerfile: Dockerfile.dev
+    container_name: praxis-proxy-dev
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - praxis-network
+    restart: unless-stopped
+
+volumes:
+  node_modules:
+
+networks:
+  praxis-network:
+    driver: bridge

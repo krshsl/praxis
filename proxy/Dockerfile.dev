@@ -1,0 +1,8 @@
+# Development proxy Dockerfile
+FROM nginx:alpine
+
+# Remove default nginx config
+RUN rm /etc/nginx/nginx.conf
+
+# Copy development nginx config
+COPY nginx.conf.dev /etc/nginx/nginx.conf

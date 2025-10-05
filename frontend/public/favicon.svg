@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 600" width="600" height="300">
+  <defs>
+    <mask id="cutout">
+      <rect x="0" y="0" width="1200" height="600" fill="white"/>
+      <circle cx="600" cy="300" r="120" fill="black"/>
+    </mask>
+    <style>
+      .fill { fill: #fefae0; }
+      .counter-stroke { fill: none; stroke: #d4a373; stroke-width: 3; }
+      .outline {
+        fill: none;
+        stroke: #d4a373;
+        stroke-width: 3;
+        stroke-linejoin: round;
+        stroke-linecap: round;
+      }
+    </style>
+  </defs>
+
+  <g mask="url(#cutout)">
+    <rect class="fill" x="400" y="300" width="80" height="200" rx="40" />
+    <circle class="fill" cx="600" cy="300" r="200"/>
+  </g>
+
+  <circle class="counter-stroke" cx="600" cy="300" r="120"/>
+
+  <path class="outline" d="
+    M 480 460
+    A 200 200 0 1 0 400 300
+    L 400 460
+    A 40 40 0 0 0 480 460
+    Z" />
+</svg>
