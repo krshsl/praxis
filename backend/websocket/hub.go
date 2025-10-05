@@ -31,11 +31,15 @@ type Client struct {
 }
 
 type Message struct {
-	Type      string `json:"type"` // "text", "code", "audio"
-	Content   string `json:"content"`
-	Language  string `json:"language,omitempty"`
-	AudioData []byte `json:"audio_data,omitempty"`
-	SessionID string `json:"session_id,omitempty"`
+	Type            string `json:"type"` // "text", "code", "audio", "audio_chunk", "user_message"
+	Content         string `json:"content"`
+	Language        string `json:"language,omitempty"`
+	AudioData       []byte `json:"audio_data,omitempty"`
+	AudioDataBase64 string `json:"audio_data_base64,omitempty"` // For Base64 encoded audio from frontend
+	ChunkIndex      int    `json:"chunk_index,omitempty"`       // For audio chunks
+	TotalChunks     int    `json:"total_chunks,omitempty"`      // For audio chunks
+	IsLastChunk     bool   `json:"is_last_chunk,omitempty"`     // For audio chunks
+	SessionID       string `json:"session_id,omitempty"`
 }
 
 type AudioMessage struct {
@@ -108,7 +112,7 @@ func (c *Client) ReadPump() {
 		c.Conn.Close()
 	}()
 
-	c.Conn.SetReadLimit(512)
+	c.Conn.SetReadLimit(10 * 1024 * 1024) // 10MB limit for large audio recordings
 	c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 	c.Conn.SetPongHandler(func(string) error {
 		c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
@@ -130,11 +134,12 @@ func (c *Client) ReadPump() {
 			continue
 		}
 
-		slog.Info("Message received", "type", msg.Type, "user_id", c.UserID, "session_id", c.SessionID)
+		slog.Info("Message received", "type", msg.Type, "session_id", c.SessionID, "content_length", len(msg.Content))
 
 		// Use message handler if available, otherwise fall back to default handling
 		if c.MessageHandler != nil {
-			c.MessageHandler(c, messageBytes)
+			// Run message handler asynchronously to avoid blocking
+			go c.MessageHandler(c, messageBytes)
 		} else {
 			// Fallback to default message handling
 			switch msg.Type {

@@ -33,7 +33,11 @@ class AudioService {
 
       this.mediaRecorder.onstop = () => {
         const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' })
-        websocketService.sendAudio(audioBlob)
+        const sizeMB = (audioBlob.size / 1024 / 1024).toFixed(2)
+        console.log('🎤 Audio recording stopped, sending audio blob:', audioBlob.size, 'bytes', `(${sizeMB} MB)`)
+        
+        // Send audio in chunks if it's too large
+        this.sendAudioInChunks(audioBlob)
         this.audioChunks = []
       }
 
@@ -123,6 +127,45 @@ class AudioService {
 
   getAudioLevel(): number {
     return useConversationStore.getState().audioLevel
+  }
+
+  private async sendAudioInChunks(audioBlob: Blob) {
+    const chunkSize = 2 * 1024 * 1024 // 2MB chunks
+    const totalSize = audioBlob.size
+    
+    if (totalSize <= chunkSize) {
+      // Small enough to send directly
+      websocketService.sendAudio(audioBlob)
+      return
+    }
+
+    console.log(`📦 Splitting audio into chunks: ${totalSize} bytes -> ${Math.ceil(totalSize / chunkSize)} chunks`)
+    
+    const chunks: Blob[] = []
+    let offset = 0
+    
+    while (offset < totalSize) {
+      const end = Math.min(offset + chunkSize, totalSize)
+      const chunk = audioBlob.slice(offset, end)
+      chunks.push(chunk)
+      offset = end
+    }
+
+    // Send chunks sequentially with a small delay
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i]
+      const isLastChunk = i === chunks.length - 1
+      
+      console.log(`📤 Sending chunk ${i + 1}/${chunks.length}: ${chunk.size} bytes${isLastChunk ? ' (final)' : ''}`)
+      
+      // Send chunk with metadata
+      websocketService.sendAudioChunk(chunk, i, chunks.length, isLastChunk)
+      
+      // Small delay between chunks to prevent overwhelming the server
+      if (!isLastChunk) {
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+    }
   }
 }
 

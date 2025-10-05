@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
@@ -9,6 +10,11 @@ import (
 
 	"github.com/krshsl/praxis/backend/models"
 	"gorm.io/gorm"
+)
+
+const (
+	DefaultTimeout = 30 * time.Minute
+	InterviewLimit = 5 * time.Minute
 )
 
 type SessionTimeoutService struct {
@@ -25,6 +31,12 @@ type ActiveSession struct {
 	LastActivity time.Time
 	Transcripts  []models.InterviewTranscript
 	CancelFunc   context.CancelFunc
+	// Audio chunking support
+	AudioChunks map[int][]byte // chunkIndex -> chunk data
+	TotalChunks int
+	ChunksMutex sync.RWMutex
+	// Penalty tracking
+	EmptyResponseCount int
 }
 
 func NewSessionTimeoutService(db *gorm.DB, geminiService *GeminiService) *SessionTimeoutService {
@@ -54,6 +66,8 @@ func (s *SessionTimeoutService) RegisterSession(sessionID, userID, agentID strin
 		LastActivity: time.Now(),
 		Transcripts:  make([]models.InterviewTranscript, 0),
 		CancelFunc:   cancel,
+		AudioChunks:  make(map[int][]byte),
+		TotalChunks:  0,
 	}
 
 	slog.Info("Session registered for timeout tracking", "session_id", sessionID, "user_id", userID)
@@ -67,6 +81,17 @@ func (s *SessionTimeoutService) UpdateActivity(sessionID string) {
 		session.LastActivity = time.Now()
 		slog.Debug("Session activity updated", "session_id", sessionID)
 	}
+}
+
+func (s *SessionTimeoutService) IsInterviewExpired(sessionID string) bool {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	if session, exists := s.activeSessions[sessionID]; exists {
+		elapsed := time.Since(session.LastActivity)
+		return elapsed > InterviewLimit
+	}
+	return false
 }
 
 func (s *SessionTimeoutService) AddTranscript(sessionID string, transcript models.InterviewTranscript) {
@@ -88,6 +113,55 @@ func (s *SessionTimeoutService) EndSession(sessionID string) {
 		session.CancelFunc()
 		delete(s.activeSessions, sessionID)
 		slog.Info("Session ended and removed from timeout tracking", "session_id", sessionID)
+	}
+}
+
+// ConcludeSession finalizes a session immediately: updates DB, generates summary, and removes from active tracking
+func (s *SessionTimeoutService) ConcludeSession(sessionID string, reason string) {
+	s.mutex.RLock()
+	session, exists := s.activeSessions[sessionID]
+	s.mutex.RUnlock()
+	if !exists {
+		slog.Warn("ConcludeSession called for non-active session", "session_id", sessionID)
+		return
+	}
+
+	// Optionally add a final agent transcript noting the reason
+	if strings.TrimSpace(reason) != "" {
+		s.AddTranscript(sessionID, models.InterviewTranscript{
+			SessionID: sessionID,
+			Speaker:   "agent",
+			Content:   fmt.Sprintf("Session concluded: %s", reason),
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Reuse the timed-out finalization flow
+	s.handleTimedOutSession(session)
+}
+
+// IncrementEmptyResponse increments the empty/unintelligible response counter and returns the updated count
+func (s *SessionTimeoutService) IncrementEmptyResponse(sessionID string) int {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	if session, exists := s.activeSessions[sessionID]; exists {
+		session.EmptyResponseCount++
+		slog.Info("Empty response recorded", "session_id", sessionID, "count", session.EmptyResponseCount)
+		return session.EmptyResponseCount
+	}
+	return 0
+}
+
+// ResetEmptyResponse resets the empty response counter for a session
+func (s *SessionTimeoutService) ResetEmptyResponse(sessionID string) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	if session, exists := s.activeSessions[sessionID]; exists {
+		if session.EmptyResponseCount != 0 {
+			session.EmptyResponseCount = 0
+			slog.Debug("Empty response counter reset", "session_id", sessionID)
+		}
 	}
 }
 
@@ -343,4 +417,66 @@ func joinStrings(strs []string, sep string) string {
 		result += sep + strs[i]
 	}
 	return result
+}
+
+// AddAudioChunk stores an audio chunk for a session
+func (s *SessionTimeoutService) AddAudioChunk(sessionID string, chunkData []byte, chunkIndex int, totalChunks int, isLastChunk bool) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	if session, exists := s.activeSessions[sessionID]; exists {
+		session.ChunksMutex.Lock()
+		defer session.ChunksMutex.Unlock()
+
+		// Store the chunk
+		session.AudioChunks[chunkIndex] = make([]byte, len(chunkData))
+		copy(session.AudioChunks[chunkIndex], chunkData)
+		session.TotalChunks = totalChunks
+
+		slog.Info("Audio chunk stored", "session_id", sessionID, "chunk_index", chunkIndex, "total_chunks", totalChunks)
+	}
+}
+
+// ReconstructAudio reconstructs the complete audio from stored chunks
+func (s *SessionTimeoutService) ReconstructAudio(sessionID string) ([]byte, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	session, exists := s.activeSessions[sessionID]
+	if !exists {
+		return nil, fmt.Errorf("session not found: %s", sessionID)
+	}
+
+	session.ChunksMutex.RLock()
+	defer session.ChunksMutex.RUnlock()
+
+	// Check if we have all chunks
+	if len(session.AudioChunks) != session.TotalChunks {
+		return nil, fmt.Errorf("incomplete chunks: have %d, expected %d", len(session.AudioChunks), session.TotalChunks)
+	}
+
+	// Calculate total size
+	totalSize := 0
+	for i := 0; i < session.TotalChunks; i++ {
+		if chunk, exists := session.AudioChunks[i]; exists {
+			totalSize += len(chunk)
+		} else {
+			return nil, fmt.Errorf("missing chunk %d", i)
+		}
+	}
+
+	// Reconstruct the complete audio
+	completeAudio := make([]byte, 0, totalSize)
+	for i := 0; i < session.TotalChunks; i++ {
+		chunk := session.AudioChunks[i]
+		completeAudio = append(completeAudio, chunk...)
+	}
+
+	slog.Info("Audio reconstructed from chunks", "session_id", sessionID, "total_chunks", session.TotalChunks)
+
+	// Clear chunks after reconstruction
+	session.AudioChunks = make(map[int][]byte)
+	session.TotalChunks = 0
+
+	return completeAudio, nil
 }

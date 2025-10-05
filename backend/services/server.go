@@ -43,7 +43,7 @@ func NewServer(config *Config) *Server {
 		config: config,
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
-				return checkOrigin(r, config.WebSocket.AllowedOrigins)
+				return CheckOrigin(r, config.WebSocket.AllowedOrigins)
 			},
 		},
 	}
@@ -95,7 +95,7 @@ func (s *Server) InitializeServices() error {
 
 	// Initialize WebSocket handler
 	if s.aiMessageProcessor != nil {
-		s.websocketHandler = NewWebSocketHandler(s.aiMessageProcessor)
+		s.websocketHandler = NewWebSocketHandler(s.aiMessageProcessor, s.timeoutService)
 		slog.Info("WebSocket handler initialized")
 	}
 
@@ -212,8 +212,8 @@ func (s *Server) Start() {
 	slog.Info("Server exited")
 }
 
-// checkOrigin validates the origin of WebSocket connections to prevent CSRF attacks
-func checkOrigin(r *http.Request, allowedOriginsStr string) bool {
+// CheckOrigin validates the origin of WebSocket connections to prevent CSRF attacks
+func CheckOrigin(r *http.Request, allowedOriginsStr string) bool {
 	origin := r.Header.Get("Origin")
 
 	// If no allowed origins are configured, deny all requests for security
@@ -331,6 +331,11 @@ func (s *Server) websocketHandlerFunc(w http.ResponseWriter, r *http.Request) {
 	// Start goroutines for reading and writing
 	go client.ReadPump()
 	go client.WritePump()
+
+	// Auto-start the interview
+	if s.websocketHandler != nil {
+		s.websocketHandler.HandleWebSocketConnection(client)
+	}
 
 	// Handle AI conversation flow
 	go s.handleAIConversation(client)

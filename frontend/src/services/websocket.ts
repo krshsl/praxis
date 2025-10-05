@@ -1,7 +1,7 @@
 import { useConversationStore } from 'store/useStore'
 
 export interface WebSocketMessage {
-  type: 'text' | 'code' | 'audio' | 'end_session'
+  type: 'text' | 'code' | 'audio' | 'end_session' | 'user_message'
   content?: string
   language?: string
   session_id?: string
@@ -57,10 +57,21 @@ class WebSocketService {
 
         this.ws.onmessage = (event) => {
           try {
-            const data = JSON.parse(event.data)
-            this.handleMessage(data)
+            // Support multiple JSON objects in one message (newline-delimited)
+            const messages = event.data
+              .split(/\r?\n/)
+              .map((line: string) => line.trim())
+              .filter((line: string) => line.length > 0)
+            for (const msg of messages) {
+              try {
+                const data = JSON.parse(msg)
+                this.handleMessage(data)
+              } catch (err) {
+                console.error('Error parsing WebSocket message chunk:', err, msg)
+              }
+            }
           } catch (error) {
-            console.error('Error parsing WebSocket message:', error)
+            console.error('Error processing WebSocket message:', error)
           }
         }
 
@@ -117,39 +128,42 @@ class WebSocketService {
 
   private handleMessage(data: WebSocketMessage | AudioMessage) {
     const store = useConversationStore.getState()
+    console.log('📨 WebSocket message received:', data)
 
-    if (data.type === 'audio' && 'audio_data' in data) {
-      // Handle audio message
-      this.playAudio(data.audio_data)
+    if (data.type === 'end_session') {
+      // Handle session end from backend
+      store.setCurrentSession(null)
+      store.clearMessages()
+      store.setSessionEnded(true, 'Session ended by server')
+      // Optionally disconnect WebSocket here if needed
+      this.disconnect()
+      return
+    }
+
+    if (data.type === 'audio' && ('audio_data' in data || 'audio_data_base64' in data)) {
+      // TODO: Re-enable audio handling later
+      console.log('🎵 Audio message received (disabled for now)')
+      // const audioData = (data as any).audio_data || (data as any).audio_data_base64
+      // this.playAudio(audioData)
     } else if ('content' in data) {
       // Handle text/code message
+      console.log('💬 Text message received:', data.content)
+      // Determine role based on message type
+      const role = data.type === 'user_message' ? 'user' : 'assistant'
+      console.log('🔍 Message type:', data.type, 'Role:', role, 'Content:', data.content)
       store.addMessage({
         content: data.content || '',
-        role: 'assistant',
+        role: role,
         type: data.type as 'text' | 'code' | 'audio',
         language: data.language,
       })
+      store.setProcessing(false)
+    } else {
+      console.log('❓ Unknown message type:', data)
     }
   }
 
-  private async playAudio(audioData: string) {
-    try {
-      const audioBlob = new Blob([Uint8Array.from(atob(audioData), c => c.charCodeAt(0))], {
-        type: 'audio/mpeg'
-      })
-      
-      const audioUrl = URL.createObjectURL(audioBlob)
-      const audio = new Audio(audioUrl)
-      
-      audio.onended = () => {
-        URL.revokeObjectURL(audioUrl)
-      }
-      
-      await audio.play()
-    } catch (error) {
-      console.error('Error playing audio:', error)
-    }
-  }
+  // Audio playback method removed (disabled for now)
 
   sendMessage(message: WebSocketMessage) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
@@ -171,6 +185,8 @@ class WebSocketService {
 
   sendAudio(audioBlob: Blob) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      useConversationStore.getState().setProcessing(true)
+      
       const reader = new FileReader()
       reader.onload = () => {
         const arrayBuffer = reader.result as ArrayBuffer
@@ -185,7 +201,35 @@ class WebSocketService {
       }
       reader.readAsArrayBuffer(audioBlob)
     } else {
-      console.error('WebSocket is not connected')
+      console.error('WebSocket is not connected, state:', this.ws?.readyState)
+    }
+  }
+
+  sendAudioChunk(audioBlob: Blob, chunkIndex: number, totalChunks: number, isLastChunk: boolean) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      if (chunkIndex === 0) {
+        useConversationStore.getState().setProcessing(true)
+      }
+      const reader = new FileReader()
+      reader.onload = () => {
+        const arrayBuffer = reader.result as ArrayBuffer
+        const uint8Array = new Uint8Array(arrayBuffer)
+        const audioData = btoa(String.fromCharCode(...uint8Array))
+        
+        console.log(`🎵 Sending audio chunk ${chunkIndex + 1}/${totalChunks}: ${audioData.length} characters`)
+        
+        this.ws?.send(JSON.stringify({
+          type: 'audio_chunk',
+          audio_data: audioData,
+          chunk_index: chunkIndex,
+          total_chunks: totalChunks,
+          is_last_chunk: isLastChunk,
+          session_id: useConversationStore.getState().currentSession
+        }))
+      }
+      reader.readAsArrayBuffer(audioBlob)
+    } else {
+      console.error('❌ WebSocket is not connected, state:', this.ws?.readyState)
     }
   }
 
@@ -194,7 +238,10 @@ class WebSocketService {
       this.ws.close()
       this.ws = null
     }
+    this.isConnecting = false
+    this.reconnectAttempts = 0
     useConversationStore.getState().setConnected(false)
+    console.log('WebSocket disconnected and reset')
   }
 
   getConnectionState(): number {

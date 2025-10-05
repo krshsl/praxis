@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom'
 import { Button } from 'components/ui/Button'
-import { Avatar, AvatarFallback } from 'components/ui/Avatar'
+import { Avatar } from 'components/ui/Avatar'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from 'components/ui/DropdownMenu'
 import { ThemeToggle } from 'components/ThemeToggle'
 import { Logo } from 'components/ui/Logo'
@@ -60,13 +60,13 @@ export function Header() {
             {user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback>
-                        {user.email?.charAt(0).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                  </Button>
+                  <div className="cursor-pointer hover:opacity-80 transition-opacity">
+                    <Avatar
+                      name={user.full_name}
+                      role="user"
+                      className="h-8 w-8"
+                    />
+                  </div>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56" align="end" forceMount>
                   <DropdownMenuLabel className="font-normal">

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/spf13/viper"
+	svc "github.com/krshsl/praxis/backend/services"
 )
 
 func TestCheckOrigin(t *testing.T) {
@@ -68,8 +69,9 @@ func TestCheckOrigin(t *testing.T) {
 			req := httptest.NewRequest("GET", "/api/v1/ws", nil)
 			req.Header.Set("Origin", tt.requestOrigin)
 
-			// Test the checkOrigin function
-			result := checkOrigin(req)
+			// Test the CheckOrigin function with allowed origins from config
+			allowed := viper.GetString("websocket.allowed_origins")
+			result := svc.CheckOrigin(req, allowed)
 
 			if result != tt.expected {
 				t.Errorf("checkOrigin() = %v, expected %v for origin %s with allowed origins %s",

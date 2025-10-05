@@ -5,7 +5,7 @@ import type { Agent, Session } from 'services/api'
 import { Card } from 'components/ui/Card'
 import { Button } from 'components/ui/Button'
 import { SearchableTable } from 'components/ui/SearchableTable'
-import { Avatar, AvatarFallback } from 'components/ui/Avatar'
+import { Avatar } from 'components/ui/Avatar'
 import { useConversationStore } from 'store/useStore'
 
 export function Dashboard() {
@@ -143,11 +143,11 @@ export function Dashboard() {
             {agents.map((agent) => (
               <Card key={agent.id} className="min-w-[200px] p-4 flex-shrink-0 bg-card border-border">
                 <div className="text-center">
-                  <Avatar className="w-16 h-16 mx-auto mb-3">
-                    <AvatarFallback className="bg-primary text-primary-foreground font-bold text-xl">
-                      {agent.name.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
+                  <Avatar 
+                    name={agent.name}
+                    role="ai"
+                    className="w-16 h-16 mx-auto mb-3"
+                  />
                   <h3 className="font-semibold text-lg mb-2 text-card-foreground">{agent.name}</h3>
                   <p className="text-muted-foreground text-sm mb-3 line-clamp-2">{agent.description}</p>
                   <div className="flex flex-wrap gap-1 mb-4 justify-center">

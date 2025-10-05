@@ -17,6 +17,13 @@ export interface ConversationState {
   currentSession: string | null
   audioLevel: number
   isProcessing: boolean
+  isUserSpeaking: boolean
+  isAISpeaking: boolean
+  isThinking: boolean
+  thinkingTimeRemaining: number
+  speakingTimeRemaining: number
+  sessionEnded: boolean
+  sessionEndReason: string | null
 }
 
 export interface ConversationActions {
@@ -26,8 +33,14 @@ export interface ConversationActions {
   setCurrentSession: (session: string | null) => void
   setAudioLevel: (level: number) => void
   setProcessing: (processing: boolean) => void
+  setUserSpeaking: (speaking: boolean) => void
+  setAISpeaking: (speaking: boolean) => void
+  setThinking: (thinking: boolean) => void
+  setThinkingTimeRemaining: (time: number) => void
+  setSpeakingTimeRemaining: (time: number) => void
   clearMessages: () => void
   updateMessage: (id: string, updates: Partial<Message>) => void
+  setSessionEnded: (ended: boolean, reason?: string) => void
 }
 
 export const useConversationStore = create<ConversationState & ConversationActions>()(
@@ -40,6 +53,13 @@ export const useConversationStore = create<ConversationState & ConversationActio
       currentSession: null,
       audioLevel: 0,
       isProcessing: false,
+      isUserSpeaking: false,
+      isAISpeaking: false,
+      isThinking: false,
+      thinkingTimeRemaining: 0,
+      speakingTimeRemaining: 0,
+      sessionEnded: false,
+      sessionEndReason: null,
 
       // Actions
       addMessage: (message) => {
@@ -73,6 +93,26 @@ export const useConversationStore = create<ConversationState & ConversationActio
         set({ isProcessing: processing })
       },
 
+      setUserSpeaking: (speaking) => {
+        set({ isUserSpeaking: speaking })
+      },
+
+      setAISpeaking: (speaking) => {
+        set({ isAISpeaking: speaking })
+      },
+
+      setThinking: (thinking) => {
+        set({ isThinking: thinking })
+      },
+
+      setThinkingTimeRemaining: (time) => {
+        set({ thinkingTimeRemaining: time })
+      },
+
+      setSpeakingTimeRemaining: (time) => {
+        set({ speakingTimeRemaining: time })
+      },
+
       clearMessages: () => {
         set({ messages: [] })
       },
@@ -83,6 +123,10 @@ export const useConversationStore = create<ConversationState & ConversationActio
             msg.id === id ? { ...msg, ...updates } : msg
           ),
         }))
+      },
+
+      setSessionEnded: (ended, reason) => {
+        set({ sessionEnded: ended, sessionEndReason: reason || null })
       },
     }),
     {
