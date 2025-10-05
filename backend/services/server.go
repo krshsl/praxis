@@ -88,7 +88,7 @@ func (s *Server) InitializeServices() error {
 	if s.config.JWT.Secret != "" && s.gormDB != nil {
 		s.authService = NewAuthService(s.gormDB, s.config.JWT.Secret)
 		s.authEndpoints = NewAuthEndpoints(s.authService)
-		s.sessionEndpoints = NewSessionEndpoints(s.gormDB)
+		s.sessionEndpoints = NewSessionEndpoints(s.gormDB, s.geminiService)
 		s.agentEndpoints = NewAgentEndpoints(s.gormDB)
 		slog.Info("Authentication service initialized")
 	}

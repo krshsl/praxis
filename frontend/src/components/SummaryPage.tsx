@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiService } from 'services/api'
-import type { Session } from 'services/api'
+import type { Session, Summary } from 'services/api'
 import { Button } from 'components/ui/Button'
 import { SearchableTable } from 'components/ui/SearchableTable'
 import { Modal } from 'components/ui/Modal'
@@ -16,10 +16,28 @@ export function SummaryPage() {
   const [deleteType, setDeleteType] = useState<'single' | 'bulk'>('single')
   const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [summaries, setSummaries] = useState<Record<string, Summary | 'loading' | 'error'>>({})
+  const [refreshing, setRefreshing] = useState(false)
+  const summariesRef = useRef<Record<string, Summary | 'loading' | 'error'>>({})
 
   useEffect(() => {
     loadSessions()
   }, [])
+
+  // Separate effect for periodic refresh
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const loadingSessions = sessions.filter(session => 
+        session.status === 'completed' && summariesRef.current[session.id] === 'loading'
+      )
+      
+      if (loadingSessions.length > 0) {
+        loadSummariesForCompletedSessions(loadingSessions)
+      }
+    }, 5000) // Check every 5 seconds
+    
+    return () => clearInterval(interval)
+  }, [sessions]) // Only depend on sessions, not summaries
 
   const loadSessions = async () => {
     try {
@@ -27,11 +45,61 @@ export function SummaryPage() {
       setError(null)
       const response = await apiService.getSessions()
       setSessions(response.sessions)
+      
+      // Load summaries for completed sessions
+      await loadSummariesForCompletedSessions(response.sessions)
     } catch (err) {
       setError('Failed to load sessions')
       console.error('Sessions load error:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadSummariesForCompletedSessions = async (sessions: Session[]) => {
+    const completedSessions = sessions.filter(session => session.status === 'completed')
+    
+    for (const session of completedSessions) {
+      try {
+        setSummaries(prev => {
+          const newSummaries = { ...prev, [session.id]: 'loading' as const }
+          summariesRef.current = newSummaries
+          return newSummaries
+        })
+        
+        const summaryResponse = await apiService.getSummary(session.id)
+        setSummaries(prev => {
+          const updatedSummaries = { ...prev, [session.id]: summaryResponse.summary }
+          summariesRef.current = updatedSummaries
+          return updatedSummaries
+        })
+      } catch (err: any) {
+        if (err.response?.status === 202) {
+          // Summary is still being generated
+          setSummaries(prev => {
+            const updatedSummaries = { ...prev, [session.id]: 'loading' as const }
+            summariesRef.current = updatedSummaries
+            return updatedSummaries
+          })
+        } else {
+          // Error or no summary available
+          setSummaries(prev => {
+            const updatedSummaries = { ...prev, [session.id]: 'error' as const }
+            summariesRef.current = updatedSummaries
+            return updatedSummaries
+          })
+        }
+      }
+    }
+  }
+
+  const refreshSummaries = async () => {
+    setRefreshing(true)
+    try {
+      const completedSessions = sessions.filter(session => session.status === 'completed')
+      await loadSummariesForCompletedSessions(completedSessions)
+    } finally {
+      setRefreshing(false)
     }
   }
 
@@ -119,35 +187,90 @@ export function SummaryPage() {
       key: 'id' as keyof Session,
       label: 'Score',
       render: (_value: any, session: Session) => {
-        // Calculate score based on session data - in real app this would come from the backend
-        const score = session.duration > 30 ? 85 : session.duration > 15 ? 75 : 65
+        // Only show score if session is completed
+        if (session.status !== 'completed') {
+          return (
+            <div className="flex items-center space-x-2">
+              <div className="w-12 h-12 relative">
+                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                  <span className="text-xs text-muted-foreground">-</span>
+                </div>
+              </div>
+              <div className="text-sm">
+                <div className="font-medium text-muted-foreground">Not Available</div>
+                <div className="text-muted-foreground">Session {session.status}</div>
+              </div>
+            </div>
+          )
+        }
+        
+        // For completed sessions, check summary status
+        const summaryStatus = summaries[session.id]
+        
+        if (summaryStatus === 'loading') {
+          return (
+            <div className="flex items-center space-x-2">
+              <div className="w-12 h-12 relative">
+                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                </div>
+              </div>
+              <div className="text-sm">
+                <div className="font-medium text-muted-foreground">Generating</div>
+                <div className="text-muted-foreground">Summary in progress</div>
+              </div>
+            </div>
+          )
+        }
+        
+        if (summaryStatus === 'error') {
+          return (
+            <div className="flex items-center space-x-2">
+              <div className="w-12 h-12 relative">
+                <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center">
+                  <span className="text-xs text-destructive">!</span>
+                </div>
+              </div>
+              <div className="text-sm">
+                <div className="font-medium text-muted-foreground">Error</div>
+                <div className="text-muted-foreground">Summary unavailable</div>
+              </div>
+            </div>
+          )
+        }
+        
+        if (summaryStatus && typeof summaryStatus === 'object') {
+          const score = summaryStatus.overall_score || 0
+          const scoreColor = score >= 80 ? 'text-green-600' : score >= 60 ? 'text-yellow-600' : 'text-red-600'
+          const bgColor = score >= 80 ? 'bg-green-100' : score >= 60 ? 'bg-yellow-100' : 'bg-red-100'
+          
+          return (
+            <div className="flex items-center space-x-2">
+              <div className="w-12 h-12 relative">
+                <div className={`w-12 h-12 rounded-full ${bgColor} flex items-center justify-center`}>
+                  <span className={`text-sm font-bold ${scoreColor}`}>{Math.round(score)} %</span>
+                </div>
+              </div>
+              <div className="text-sm">
+                <div className="text-muted-foreground">
+                  {score >= 80 ? 'Excellent' : score >= 60 ? 'Good' : 'Needs Improvement'}
+                </div>
+              </div>
+            </div>
+          )
+        }
+        
+        // Default case - no summary data yet
         return (
           <div className="flex items-center space-x-2">
             <div className="w-12 h-12 relative">
-              <svg className="w-12 h-12 transform -rotate-90">
-                <circle
-                  cx="24"
-                  cy="24"
-                  r="20"
-                  stroke="#e5e7eb"
-                  strokeWidth="4"
-                  fill="none"
-                />
-                <circle
-                  cx="24"
-                  cy="24"
-                  r="20"
-                  stroke={score >= 80 ? '#10b981' : score >= 60 ? '#f59e0b' : '#ef4444'}
-                  strokeWidth="4"
-                  fill="none"
-                  strokeDasharray={`${2 * Math.PI * 20}`}
-                  strokeDashoffset={`${2 * Math.PI * 20 * (1 - score / 100)}`}
-                  strokeLinecap="round"
-                />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-xs font-bold">{score}%</span>
+              <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                <span className="text-xs text-muted-foreground">-</span>
               </div>
+            </div>
+            <div className="text-sm">
+              <div className="font-medium text-muted-foreground">Pending</div>
+              <div className="text-muted-foreground">No summary yet</div>
             </div>
           </div>
         )
@@ -200,6 +323,21 @@ export function SummaryPage() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">Interview Summaries</h1>
         <div className="flex items-center space-x-4">
+          <Button
+            onClick={refreshSummaries}
+            disabled={refreshing}
+            variant="outline"
+            size="sm"
+          >
+            {refreshing ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2"></div>
+                Refreshing...
+              </>
+            ) : (
+              'Refresh Scores'
+            )}
+          </Button>
           <div className="text-sm text-muted-foreground">
             {sessions.length} total sessions
           </div>

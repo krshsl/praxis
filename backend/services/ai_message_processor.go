@@ -342,6 +342,8 @@ func (p *AIMessageProcessor) processAudioData(client *ws.Client, audioData []byt
 				if count >= 3 {
 					finalMsg := "It seems we've had several attempts without a valid response. We'll end the session here and prepare your summary."
 					p.sendMessage(client, finalMsg, "text", "")
+					// Send end_session message to trigger frontend session end
+					p.sendMessage(client, "Session ended", "end_session", "")
 					p.timeoutService.ConcludeSession(client.SessionID, "Empty response limit reached")
 					return
 				}
@@ -399,6 +401,8 @@ func (p *AIMessageProcessor) processAudioData(client *ws.Client, audioData []byt
 				slog.Info("Interview time limit exceeded (5 minutes)", "session_id", client.SessionID)
 				endingMessage := "Thank you for your time! We've reached the 5-minute interview limit. This concludes our interview session. We'll review your responses and get back to you soon."
 				p.sendMessage(client, endingMessage, "text", "")
+				// Send end_session message to trigger frontend session end
+				p.sendMessage(client, "Session ended", "end_session", "")
 
 				// End the session
 				if p.timeoutService != nil {
@@ -416,6 +420,20 @@ func (p *AIMessageProcessor) processAudioData(client *ws.Client, audioData []byt
 				return
 			}
 			slog.Info("AI response generated", "session_id", client.SessionID, "response", aiResponse)
+
+			// Check if AI response indicates session should end
+			if p.isSessionEndingResponse(aiResponse) {
+				slog.Info("AI response indicates session should end", "session_id", client.SessionID, "response", aiResponse)
+				// Send the AI response as text (not audio)
+				p.sendMessage(client, aiResponse, "text", "")
+				// Send end_session message to trigger frontend session end
+				p.sendMessage(client, "Session ended", "end_session", "")
+				// Conclude the session
+				if p.timeoutService != nil {
+					p.timeoutService.ConcludeSession(client.SessionID, "AI determined session should end")
+				}
+				return
+			}
 
 			// Save AI response to database
 			if p.timeoutService != nil && client.SessionID != "" {
@@ -765,4 +783,54 @@ func (p *AIMessageProcessor) decodeBase64Audio(audioData []byte) ([]byte, error)
 		return nil, err
 	}
 	return decoded, nil
+}
+
+// isSessionEndingResponse checks if the AI response indicates the session should end
+func (p *AIMessageProcessor) isSessionEndingResponse(response string) bool {
+	response = strings.ToLower(response)
+
+	// Keywords that indicate session ending
+	endingKeywords := []string{
+		"end our session",
+		"end the session",
+		"conclude our interview",
+		"wrap up",
+		"thank you for your time",
+		"not the right moment",
+		"not interested in the role",
+		"doesn't make sense to continue",
+		"end here",
+		"session here",
+		"not ready for a professional interview",
+		"reach out when you're ready",
+		"not the right fit",
+		"not a good match",
+		"not suitable",
+		"not qualified",
+		"not what we're looking for",
+		"not the right candidate",
+		"not the right person",
+		"not the right fit for this role",
+		"not the right fit for this position",
+		"not the right fit for this job",
+		"not the right fit for this company",
+		"not the right fit for this team",
+		"not the right fit for this department",
+		"not the right fit for this organization",
+		"not the right fit for this role",
+		"not the right fit for this position",
+		"not the right fit for this job",
+		"not the right fit for this company",
+		"not the right fit for this team",
+		"not the right fit for this department",
+		"not the right fit for this organization",
+	}
+
+	for _, keyword := range endingKeywords {
+		if strings.Contains(response, keyword) {
+			return true
+		}
+	}
+
+	return false
 }

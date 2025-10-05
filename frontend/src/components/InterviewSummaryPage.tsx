@@ -309,132 +309,128 @@ export function InterviewSummaryPage() {
 
         </div>
 
-        {/* Score Section - 1/3 */}
-        <div className="lg:col-span-1">
-          <Card className="sticky top-6">
-            <CardHeader>
-              <CardTitle>Overall Score</CardTitle>
-            </CardHeader>
-            <CardContent className="text-center">
-              <CircularProgress
-                value={summary.score > 0 ? summary.score : 0}
-                size={150}
-                label={summary.score > 0 ? "Overall Performance" : "Analysis in Progress"}
-                showPercentage={summary.score > 0}
-                className="mx-auto mb-6"
-              />
-              
-              <div className="space-y-4">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-foreground">
-                    {summary.score > 0 ? `${summary.score}%` : 'Pending'}
+        {/* Score Section - 1/3 - Only show when summary is ready */}
+        {!summary.isGenerating && (
+          <div className="lg:col-span-1">
+            <Card className="sticky top-6">
+              <CardHeader>
+                <CardTitle>Overall Score</CardTitle>
+              </CardHeader>
+              <CardContent className="text-center">
+                <CircularProgress
+                  value={summary.score}
+                  size={150}
+                  label="Overall Performance"
+                  showPercentage={true}
+                  className="mx-auto mb-6"
+                />
+                
+                <div className="space-y-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-foreground">
+                      {summary.score}%
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {summary.score >= 80 ? 'Excellent' : 
+                       summary.score >= 70 ? 'Good' : 
+                       summary.score >= 60 ? 'Fair' : 'Needs Improvement'}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-2 p-2 bg-muted rounded">
+                      Scored by {summary.agent.name} ({summary.agent.personality} interviewer)
+                    </div>
                   </div>
-                  <div className="text-sm text-muted-foreground">
-                    {summary.score > 0 ? (
-                      summary.score >= 80 ? 'Excellent' : 
-                      summary.score >= 70 ? 'Good' : 
-                      summary.score >= 60 ? 'Fair' : 'Needs Improvement'
-                    ) : 'Analysis in progress...'}
+
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-foreground">Technical Skills</span>
+                      <span className="font-medium text-foreground">
+                        {summary.technical_skills.length > 0 
+                          ? Math.round(summary.technical_skills.reduce((acc, skill) => acc + skill.rating, 0) / summary.technical_skills.length)
+                          : 'N/A'
+                        }%
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-foreground">Communication</span>
+                      <span className="font-medium text-foreground">
+                        {summary.communication_skills.length > 0 
+                          ? Math.round(summary.communication_skills.reduce((acc, skill) => acc + skill.rating, 0) / summary.communication_skills.length)
+                          : 'N/A'
+                        }%
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-xs text-muted-foreground mt-2 p-2 bg-muted rounded">
-                    {summary.score > 0 ? (
-                      `Scored by ${summary.agent.name} (${summary.agent.personality} interviewer)`
+
+                  <Button 
+                    onClick={() => navigate('/dashboard')} 
+                    className="w-full"
+                  >
+                    Back to Dashboard
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Skills Assessment */}
+            <div className="space-y-6 mt-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Technical Skills</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {summary.technical_skills.length > 0 ? (
+                      summary.technical_skills.map((skill, index) => (
+                        <div key={`tech-${skill.skill}-${index}`}>
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-sm font-medium text-foreground">{skill.skill}</span>
+                            <span className="text-sm text-muted-foreground">{skill.rating}%</span>
+                          </div>
+                          <div className="w-full bg-muted rounded-full h-2">
+                            <div
+                              className="bg-primary h-2 rounded-full transition-all duration-300"
+                              style={{ width: `${skill.rating}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))
                     ) : (
-                      'AI is analyzing your performance...'
+                      <p className="text-sm text-muted-foreground">No technical skills data available</p>
                     )}
                   </div>
-                </div>
+                </CardContent>
+              </Card>
 
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-foreground">Technical Skills</span>
-                    <span className="font-medium text-foreground">
-                      {summary.technical_skills.length > 0 
-                        ? Math.round(summary.technical_skills.reduce((acc, skill) => acc + skill.rating, 0) / summary.technical_skills.length)
-                        : 'N/A'
-                      }%
-                    </span>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Communication Skills</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {summary.communication_skills.length > 0 ? (
+                      summary.communication_skills.map((skill, index) => (
+                        <div key={`comm-${skill.skill}-${index}`}>
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-sm font-medium text-foreground">{skill.skill}</span>
+                            <span className="text-sm text-muted-foreground">{skill.rating}%</span>
+                          </div>
+                          <div className="w-full bg-muted rounded-full h-2">
+                            <div
+                              className="bg-primary h-2 rounded-full transition-all duration-300"
+                              style={{ width: `${skill.rating}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No communication skills data available</p>
+                    )}
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-foreground">Communication</span>
-                    <span className="font-medium text-foreground">
-                      {summary.communication_skills.length > 0 
-                        ? Math.round(summary.communication_skills.reduce((acc, skill) => acc + skill.rating, 0) / summary.communication_skills.length)
-                        : 'N/A'
-                      }%
-                    </span>
-                  </div>
-                </div>
-
-                <Button 
-                  onClick={() => navigate('/dashboard')} 
-                  className="w-full"
-                >
-                  Back to Dashboard
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Skills Assessment */}
-          <div className="space-y-6 mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Technical Skills</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {summary.technical_skills.length > 0 ? (
-                    summary.technical_skills.map((skill, index) => (
-                      <div key={`tech-${skill.skill}-${index}`}>
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="text-sm font-medium text-foreground">{skill.skill}</span>
-                          <span className="text-sm text-muted-foreground">{skill.rating}%</span>
-                        </div>
-                        <div className="w-full bg-muted rounded-full h-2">
-                          <div
-                            className="bg-primary h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${skill.rating}%` }}
-                          />
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No technical skills data available</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Communication Skills</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {summary.communication_skills.length > 0 ? (
-                    summary.communication_skills.map((skill, index) => (
-                      <div key={`comm-${skill.skill}-${index}`}>
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="text-sm font-medium text-foreground">{skill.skill}</span>
-                          <span className="text-sm text-muted-foreground">{skill.rating}%</span>
-                        </div>
-                        <div className="w-full bg-muted rounded-full h-2">
-                          <div
-                            className="bg-primary h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${skill.rating}%` }}
-                          />
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No communication skills data available</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   )

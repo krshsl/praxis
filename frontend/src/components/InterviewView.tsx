@@ -38,6 +38,7 @@ export function InterviewView() {
   const [showSessionEndModal, setShowSessionEndModal] = useState(false)
   const [audioSrc, setAudioSrc] = useState<string | null>(null)
   const [currentPhase, setCurrentPhase] = useState<'thinking' | 'speaking' | 'idle'>('idle')
+  const [warningCount, setWarningCount] = useState(0)
 
   const startThinkingPhase = useCallback(() => {
     setCurrentPhase('thinking')
@@ -108,20 +109,47 @@ export function InterviewView() {
 
   useEffect(() => {
     if (sessionEnded) {
+      // Show session end modal
       setShowSessionEndModal(true)
+      
+      // Clean up session state
       useConversationStore.getState().setCurrentSession(null)
       useConversationStore.getState().clearMessages()
+      
+      // Stop any playing audio
       if (audioRef.current) {
         audioRef.current.pause()
         audioRef.current.currentTime = 0
         audioRef.current.remove()
         audioRef.current = null
       }
+      
+      // Disconnect WebSocket to prevent further messages
+      websocketService.disconnect()
+      
+      // Show appropriate toast based on session end reason
+      const sessionEndReason = useConversationStore.getState().sessionEndReason
+      if (sessionEndReason === 'Session ended by server') {
+        toast({
+          title: 'Session Ended Automatically',
+          description: 'The interview session has been automatically ended. You will be redirected to the dashboard.',
+          variant: 'default',
+        })
+      } else {
+        toast({
+          title: 'Interview Session Ended',
+          description: 'Your interview session has ended. You will be redirected to the dashboard.',
+          variant: 'default',
+        })
+      }
+      
+      // Reset session ended state and warning count
       setTimeout(() => {
         useConversationStore.getState().setSessionEnded(false)
+        setWarningCount(0)
       }, 0)
     }
-  }, [sessionEnded])
+  }, [sessionEnded, toast])
 
 
   const [isInitialized, setIsInitialized] = useState(false)
@@ -185,6 +213,7 @@ export function InterviewView() {
   useEffect(() => {
     if (user && !isInitialized) {
       initializeConnection()
+      setWarningCount(0) // Reset warning count for new session
       setIsInitialized(true)
     }
   }, [user, isInitialized, initializeConnection])
@@ -301,6 +330,33 @@ export function InterviewView() {
     }
   }, [audioGenerationFailed, toast])
 
+  // Monitor messages for warning indicators
+  useEffect(() => {
+    const latestMessage = messages[messages.length - 1]
+    if (latestMessage && latestMessage.role === 'assistant') {
+      const content = latestMessage.content.toLowerCase()
+      
+      // Check for warning patterns
+      if (content.includes("couldn't hear") || content.includes("clear response") || content.includes("try again")) {
+        setWarningCount(prev => prev + 1)
+        
+        // Show warning toast
+        toast({
+          title: 'Response Not Clear',
+          description: 'Please speak clearly and provide a meaningful response.',
+          variant: 'destructive',
+        })
+      } else if (content.includes("several attempts") || content.includes("end the session")) {
+        // Final warning - session will end
+        toast({
+          title: 'Final Warning',
+          description: 'The session will end if you continue to provide unclear responses.',
+          variant: 'destructive',
+        })
+      }
+    }
+  }, [messages, toast])
+
   return (
     <div className="h-screen flex flex-col overflow-hidden" data-interview-view>
       {/* Session Ended Modal (full page) */}
@@ -312,9 +368,43 @@ export function InterviewView() {
         showCloseButton={false}
       >
         <div className="space-y-4 text-center">
-          <p className="text-lg text-muted-foreground">
-            Your interview session has ended. You will be redirected to the dashboard.
-          </p>
+          {useConversationStore.getState().sessionEndReason === 'Session ended by server' ? (
+            <>
+              <div className="w-16 h-16 mx-auto mb-4 bg-orange-100 dark:bg-orange-900/20 rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-orange-600 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-foreground">Session Ended Automatically</h3>
+              <p className="text-muted-foreground">
+                The interview session has been automatically ended due to inactivity or uncooperative behavior. 
+                Your responses will still be analyzed and a summary will be generated.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="w-16 h-16 mx-auto mb-4 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-foreground">Interview Completed</h3>
+              <p className="text-muted-foreground">
+                Your interview session has ended successfully. You will be redirected to the dashboard where you can view your summary.
+              </p>
+            </>
+          )}
+          
+          <div className="bg-muted p-4 rounded-lg text-left">
+            <h4 className="font-medium mb-2">What happens next?</h4>
+            <ul className="text-sm text-muted-foreground space-y-1">
+              <li>• Your interview responses will be analyzed by AI</li>
+              <li>• A detailed summary and score will be generated</li>
+              <li>• You can view your results on the dashboard</li>
+              <li>• The summary will be available in a few minutes</li>
+            </ul>
+          </div>
+          
           <Button
             className="mt-4"
             onClick={() => {
@@ -382,13 +472,28 @@ export function InterviewView() {
             </div>
             {/* User Avatar */}
             <div className="flex flex-col items-center space-y-2">
-              <Avatar 
-                name={user?.email || "User"} 
-                role="user" 
-                isSpeaking={isUserSpeaking}
-                className="w-16 h-16"
-              />
+              <div className="relative">
+                <Avatar 
+                  name={user?.email || "User"} 
+                  role="user" 
+                  isSpeaking={isUserSpeaking}
+                  className="w-16 h-16"
+                />
+                {/* Warning indicator for uncooperative behavior */}
+                {warningCount > 0 && (
+                  <div className="absolute -top-1 -right-1 w-6 h-6 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs font-bold">
+                    {warningCount}
+                  </div>
+                )}
+              </div>
               <SpeakingIndicator isSpeaking={isUserSpeaking} />
+              {warningCount > 0 && (
+                <div className="text-xs text-orange-600 dark:text-orange-400 text-center max-w-32">
+                  {warningCount === 1 && "Please speak clearly"}
+                  {warningCount === 2 && "Warning: Be more responsive"}
+                  {warningCount >= 3 && "Final warning: Session may end"}
+                </div>
+              )}
               {/* Audio Playing Phase */}
               {isAudioPlaying && (
                 <div className="text-center">
