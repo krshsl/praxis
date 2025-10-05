@@ -494,20 +494,83 @@ func (g *GeminiService) ClearSessionCache(sessionID string) {
 	slog.Info("Cleared session cache", "session_id", sessionID)
 }
 
-// GenerateSummary generates a simple text summary without caching (used for timeout summaries)
+// GenerateSummary generates a structured JSON summary using Gemini's structured output
 func (g *GeminiService) GenerateSummary(ctx context.Context, prompt string) (string, error) {
 	if g.genaiClient == nil {
 		return "", fmt.Errorf("genai client not initialized")
+	}
+
+	// Define the JSON schema for the summary response
+	config := &genai.GenerateContentConfig{
+		ResponseMIMEType: "application/json",
+		ResponseSchema: &genai.Schema{
+			Type: genai.TypeObject,
+			Properties: map[string]*genai.Schema{
+				"summary": {
+					Type:        genai.TypeString,
+					Description: "A comprehensive summary of the interview performance",
+				},
+				"strengths": {
+					Type:        genai.TypeString,
+					Description: "Key strengths and positive aspects observed during the interview",
+				},
+				"weaknesses": {
+					Type:        genai.TypeString,
+					Description: "Areas for improvement and weaknesses identified",
+				},
+				"recommendations": {
+					Type:        genai.TypeString,
+					Description: "Specific recommendations for the candidate's development",
+				},
+				"overallScore": {
+					Type:        genai.TypeNumber,
+					Description: "Overall performance score from 0 to 100",
+				},
+				"technicalSkills": {
+					Type: genai.TypeArray,
+					Items: &genai.Schema{
+						Type: genai.TypeObject,
+						Properties: map[string]*genai.Schema{
+							"skill": {
+								Type:        genai.TypeString,
+								Description: "Name of the technical skill",
+							},
+							"rating": {
+								Type:        genai.TypeNumber,
+								Description: "Rating from 0 to 100",
+							},
+						},
+					},
+				},
+				"communicationSkills": {
+					Type: genai.TypeArray,
+					Items: &genai.Schema{
+						Type: genai.TypeObject,
+						Properties: map[string]*genai.Schema{
+							"skill": {
+								Type:        genai.TypeString,
+								Description: "Name of the communication skill",
+							},
+							"rating": {
+								Type:        genai.TypeNumber,
+								Description: "Rating from 0 to 100",
+							},
+						},
+					},
+				},
+			},
+			PropertyOrdering: []string{"summary", "strengths", "weaknesses", "recommendations", "overallScore", "technicalSkills", "communicationSkills"},
+		},
 	}
 
 	result, err := g.genaiClient.Models.GenerateContent(
 		ctx,
 		ModelName,
 		genai.Text(prompt),
-		nil,
+		config,
 	)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate summary: %w", err)
+		return "", fmt.Errorf("failed to generate structured summary: %w", err)
 	}
 
 	return result.Text(), nil

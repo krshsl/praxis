@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -239,6 +240,12 @@ func (s *SessionTimeoutService) generateAutoSummary(ctx context.Context, session
 		return
 	}
 
+	// Use global mutex to prevent concurrent summary generation across services
+	// Note: This should be the same mutex used in session_endpoints.go
+	// For now, we'll use the existing mutex but this could be improved with a shared service
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	// Check if summary already exists to prevent duplicates
 	var existingSummary models.InterviewSummary
 	err := s.db.Where("session_id = ?", session.ID).First(&existingSummary).Error
@@ -411,19 +418,69 @@ type ParsedSummary struct {
 }
 
 func (s *SessionTimeoutService) parseAISummary(aiResponse string) ParsedSummary {
-	// Parse AI response to extract structured data
-	// This is a simplified parser - in production, you'd want more sophisticated parsing
-	// that can extract scores, strengths, weaknesses, etc. from the AI response
+	// Parse structured JSON response from Gemini
+	var response struct {
+		Summary         string  `json:"summary"`
+		Strengths       string  `json:"strengths"`
+		Weaknesses      string  `json:"weaknesses"`
+		Recommendations string  `json:"recommendations"`
+		OverallScore    float64 `json:"overallScore"`
+		TechnicalSkills []struct {
+			Skill  string  `json:"skill"`
+			Rating float64 `json:"rating"`
+		} `json:"technicalSkills"`
+		CommunicationSkills []struct {
+			Skill  string  `json:"skill"`
+			Rating float64 `json:"rating"`
+		} `json:"communicationSkills"`
+	}
 
-	// For now, we'll analyze the response length and content to determine a score
-	score := s.calculateScoreFromResponse(aiResponse)
+	// Parse the JSON response
+	if err := json.Unmarshal([]byte(aiResponse), &response); err != nil {
+		slog.Error("Failed to parse AI summary JSON", "error", err, "response", aiResponse)
+		// Fallback to basic parsing if JSON parsing fails
+		return ParsedSummary{
+			Summary:         aiResponse,
+			Strengths:       "Unable to parse structured response",
+			Weaknesses:      "Unable to parse structured response",
+			Recommendations: "Unable to parse structured response",
+			OverallScore:    50.0, // Default score
+		}
+	}
+
+	// Validate and sanitize the response
+	if response.OverallScore < 0 {
+		response.OverallScore = 0
+	}
+	if response.OverallScore > 100 {
+		response.OverallScore = 100
+	}
+
+	// Ensure we have valid strings
+	if response.Summary == "" {
+		response.Summary = "No summary provided"
+	}
+	if response.Strengths == "" {
+		response.Strengths = "No strengths identified"
+	}
+	if response.Weaknesses == "" {
+		response.Weaknesses = "No weaknesses identified"
+	}
+	if response.Recommendations == "" {
+		response.Recommendations = "No recommendations provided"
+	}
+
+	slog.Info("Successfully parsed structured AI summary",
+		"overall_score", response.OverallScore,
+		"technical_skills_count", len(response.TechnicalSkills),
+		"communication_skills_count", len(response.CommunicationSkills))
 
 	return ParsedSummary{
-		Summary:         aiResponse,
-		Strengths:       "Demonstrated technical knowledge and communication skills",
-		Weaknesses:      "Session ended due to timeout - limited interaction data",
-		Recommendations: "Consider completing the full interview for more comprehensive feedback",
-		OverallScore:    score,
+		Summary:         response.Summary,
+		Strengths:       response.Strengths,
+		Weaknesses:      response.Weaknesses,
+		Recommendations: response.Recommendations,
+		OverallScore:    response.OverallScore,
 	}
 }
 
