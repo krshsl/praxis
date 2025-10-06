@@ -15,7 +15,6 @@ frontend/.DS_Store
 *.log
 
 # IDE
-.vscode/
 .idea/
 *.swp
 *.swo
@@ -24,3 +23,6 @@ frontend/.DS_Store
 # OS
 .DS_Store
 Thumbs.db
+
+# Tmp files
+tmp*
